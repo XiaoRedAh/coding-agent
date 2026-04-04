@@ -33,8 +33,31 @@ TRANSCRIPT_DIR = WORKDIR / ".transcripts"
 client = Anthropic(base_url=os.getenv("ANTHROPIC_BASE_URL"))
 MODEL = os.environ["MODEL_ID"]
 
-# === 阈值与超时 ===
-TOKEN_THRESHOLD = 100000
+# === 上下文窗口与压缩阈值 ===
+MODEL_CONTEXT_WINDOW = int(os.getenv("MODEL_CONTEXT_WINDOW", "200000"))
+MAX_OUTPUT_TOKENS = 8000
+EFFECTIVE_WINDOW = MODEL_CONTEXT_WINDOW - min(MAX_OUTPUT_TOKENS, 20000)
+
+# 多级阈值体系（基于有效窗口的百分比）
+BUDGET_THRESHOLD = 0.50       # 50% — 开始动态缩减工具结果
+SNIP_THRESHOLD = 0.60         # 60% — 开始 snip 过时的工具结果
+BUDGET_TIGHT_THRESHOLD = 0.70 # 70% — 更激进的预算
+AUTOCOMPACT_THRESHOLD = 0.85  # 85% — 触发全量摘要压缩
+WARNING_THRESHOLD = 0.82      # 82% — 显示警告
+
+# 压缩常量
+BUDGET_NORMAL = 30000         # 50-70% 时的工具结果字符预算
+BUDGET_TIGHT = 15000          # >70% 时的工具结果字符预算
+SNIP_KEEP_RECENT = 3          # snip 时保留最近 N 个工具结果
+MICROCOMPACT_IDLE_SECONDS = 300  # 5 分钟空闲触发微压缩
+MAX_AUTOCOMPACT_FAILURES = 3  # 断路器阈值
+
+# 压缩后恢复预算
+POST_COMPACT_MAX_FILES = 5
+POST_COMPACT_MAX_TOKENS_PER_FILE = 5000
+POST_COMPACT_SKILLS_BUDGET = 25000
+
+# === 其他阈值 ===
 POLL_INTERVAL = 5
 IDLE_TIMEOUT = 60
 

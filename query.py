@@ -2,40 +2,65 @@
 query.py - 核心查询循环
 
 管理单次查询的完整生命周期状态机：
-    压缩检查 → 后台通知注入 → 收件箱检查 → LLM API 调用 → 工具执行 → 循环/返回
+    压缩管道(L1-L3) → 后台通知 → 收件箱 → LLM 调用 → Token更新
+    → 工具执行 → AutoCompact检查(L5) → 循环/返回
 
 对应 Claude Code 源码中的 query.ts。
+
+压缩管道编排：
+    while True:
+        run_compression_pipeline()   # L1-L3（零 API 成本）
+        response = call_api()
+        tracker.update_from_response()
+        execute_tools()
+        check_and_compact()          # L5（如果需要）
 """
 
 import json
 
 from bootstrap import state
-from bootstrap.state import client, MODEL, TOKEN_THRESHOLD
-from services.compact import estimate_tokens, microcompact, auto_compact
+from bootstrap.state import client, MODEL, WARNING_THRESHOLD, EFFECTIVE_WINDOW
+from services.compact import (
+    TokenTracker, CircuitBreaker,
+    run_compression_pipeline, check_and_compact, auto_compact,
+)
 from tools import get_all_definitions, get_all_handlers
 from context import build_system_prompt
 
 
-def agent_loop(messages: list):
+def agent_loop(
+    messages: list,
+    tracker: TokenTracker = None,
+    breaker: CircuitBreaker = None,
+):
     """
-    主代理循环：每轮执行压缩检查、后台通知、收件箱检查、LLM 调用、工具执行。
+    主代理循环：每轮执行压缩管道、后台通知、收件箱检查、LLM 调用、工具执行。
 
     循环持续进行直到 LLM 返回非工具调用的停止原因（即给出最终回答）。
 
     Args:
         messages: 对话消息列表（会被原地修改）
+        tracker: Token 追踪器（跨 agent_loop 调用保持状态）
+        breaker: 断路器（跨 agent_loop 调用保持状态）
     """
+    if tracker is None:
+        tracker = TokenTracker()
+    if breaker is None:
+        breaker = CircuitBreaker()
+
     system_prompt = build_system_prompt()
     tool_defs = get_all_definitions()
     tool_handlers = get_all_handlers()
 
     rounds_without_todo = 0
     while True:
-        # === 压缩管道 ===
-        microcompact(messages)
-        if estimate_tokens(messages) > TOKEN_THRESHOLD:
-            print("[auto-compact triggered]")
-            messages[:] = auto_compact(messages)
+        # === L1-L3 压缩管道（零 API 成本） ===
+        run_compression_pipeline(messages, tracker)
+
+        # === 上下文利用率警告 ===
+        utilization = tracker.get_utilization()
+        if utilization >= WARNING_THRESHOLD:
+            print(f"[warning: context at {utilization:.0%}, consider /compact]")
 
         # === 后台通知 ===
         notifs = state.bg.drain()
@@ -43,18 +68,22 @@ def agent_loop(messages: list):
             txt = "\n".join(
                 f"[bg:{n['task_id']}] {n['status']}: {n['result']}" for n in notifs
             )
-            messages.append({
+            msg = {
                 "role": "user",
                 "content": f"<background-results>\n{txt}\n</background-results>",
-            })
+            }
+            messages.append(msg)
+            tracker.track_new_message(msg)
 
         # === 收件箱检查 ===
         inbox = state.bus.read_inbox("lead")
         if inbox:
-            messages.append({
+            msg = {
                 "role": "user",
                 "content": f"<inbox>{json.dumps(inbox, indent=2)}</inbox>",
-            })
+            }
+            messages.append(msg)
+            tracker.track_new_message(msg)
 
         # === LLM 调用 ===
         response = client.messages.create(
@@ -66,8 +95,11 @@ def agent_loop(messages: list):
         )
         messages.append({"role": "assistant", "content": response.content})
 
+        # === 更新 Token 锚点 ===
+        tracker.update_from_response(response)
+
         if response.stop_reason != "tool_use":
-            return
+            return tracker, breaker
 
         # === 工具执行 ===
         results = []
@@ -103,10 +135,19 @@ def agent_loop(messages: list):
                 "type": "text",
                 "text": "<reminder>Update your todos.</reminder>",
             })
-        messages.append({"role": "user", "content": results})
+
+        tool_msg = {"role": "user", "content": results}
+        messages.append(tool_msg)
+        tracker.track_new_message(tool_msg)
 
         # === 手动压缩 ===
         if manual_compress:
             print("[manual compact]")
-            messages[:] = auto_compact(messages)
-            return
+            messages[:] = auto_compact(messages, tracker)
+            breaker.record_success()  # 手动压缩成功重置断路器
+            return tracker, breaker
+
+        # === L5: AutoCompact 检查（在工具执行后） ===
+        compacted = check_and_compact(messages, tracker, breaker)
+        if compacted is not None:
+            messages[:] = compacted
