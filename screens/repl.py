@@ -12,22 +12,21 @@ import json
 from bootstrap import state
 from services.compact import TokenTracker, CircuitBreaker, auto_compact
 from query import agent_loop
+from agents.coordinator import is_coordinator_mode
 
 
 def run_repl():
     """
-    REPL 主循环：提供交互式命令行界面。
+    REPL 主循环。
 
-    支持的特殊命令：
-    - /compact: 手动压缩对话上下文
-    - /tasks: 显示所有持久化任务
-    - /team: 显示所有队友状态
-    - /inbox: 读取 lead 的收件箱
-    - q / exit / 空行: 退出
+    支持命令：/compact, /tasks, /team, /inbox, q/exit
     """
     history = []
     tracker = TokenTracker()
     breaker = CircuitBreaker()
+
+    if is_coordinator_mode():
+        print("[Coordinator mode] You are the coordinator. Use agent tool to delegate work.")
 
     while True:
         try:
@@ -51,10 +50,12 @@ def run_repl():
         if query.strip() == "/inbox":
             print(json.dumps(state.bus.read_inbox("lead"), indent=2))
             continue
+
         msg = {"role": "user", "content": query}
         history.append(msg)
         tracker.track_new_message(msg)
         tracker, breaker = agent_loop(history, tracker, breaker)
+
         response_content = history[-1]["content"]
         if isinstance(response_content, list):
             for block in response_content:

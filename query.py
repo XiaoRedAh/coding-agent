@@ -5,27 +5,23 @@ query.py - 核心查询循环
     压缩管道(L1-L3) → 后台通知 → 收件箱 → LLM 调用 → Token更新
     → 工具执行 → AutoCompact检查(L5) → 循环/返回
 
-对应 Claude Code 源码中的 query.ts。
+在 Coordinator 模式下，系统提示和工具池被替换为协调者配置，
+主 Agent 变为只能调度 Worker 的协调者。
 
-压缩管道编排：
-    while True:
-        run_compression_pipeline()   # L1-L3（零 API 成本）
-        response = call_api()
-        tracker.update_from_response()
-        execute_tools()
-        check_and_compact()          # L5（如果需要）
+对应 Claude Code 源码中的 query.ts。
 """
 
 import json
 
 from bootstrap import state
-from bootstrap.state import client, MODEL, WARNING_THRESHOLD, EFFECTIVE_WINDOW
+from bootstrap.state import client, MODEL, WARNING_THRESHOLD
 from services.compact import (
     TokenTracker, CircuitBreaker,
     run_compression_pipeline, check_and_compact, auto_compact,
 )
 from tools import get_all_definitions, get_all_handlers
 from context import build_system_prompt
+from agents.coordinator import is_coordinator_mode, get_coordinator_config
 
 
 def agent_loop(
@@ -34,30 +30,36 @@ def agent_loop(
     breaker: CircuitBreaker = None,
 ):
     """
-    主代理循环：每轮执行压缩管道、后台通知、收件箱检查、LLM 调用、工具执行。
+    主代理循环。
 
-    循环持续进行直到 LLM 返回非工具调用的停止原因（即给出最终回答）。
-
-    Args:
-        messages: 对话消息列表（会被原地修改）
-        tracker: Token 追踪器（跨 agent_loop 调用保持状态）
-        breaker: 断路器（跨 agent_loop 调用保持状态）
+    在 Coordinator 模式下，系统提示和工具池被替换，主 Agent 变为协调者。
     """
     if tracker is None:
         tracker = TokenTracker()
     if breaker is None:
         breaker = CircuitBreaker()
 
-    system_prompt = build_system_prompt()
-    tool_defs = get_all_definitions()
-    tool_handlers = get_all_handlers()
+    # === 根据模式选择配置 ===
+    all_defs = get_all_definitions()
+    all_handlers = get_all_handlers()
+
+    if is_coordinator_mode():
+        coord_config = get_coordinator_config()
+        system_prompt = coord_config["system_prompt"]
+        allowed = coord_config["allowed_tools"]
+        tool_defs = [d for d in all_defs if d["name"] in allowed]
+        tool_handlers = {k: v for k, v in all_handlers.items() if k in allowed}
+        print("[coordinator mode active]")
+    else:
+        system_prompt = build_system_prompt()
+        tool_defs = all_defs
+        tool_handlers = all_handlers
 
     rounds_without_todo = 0
     while True:
-        # === L1-L3 压缩管道（零 API 成本） ===
+        # === L1-L3 压缩管道 ===
         run_compression_pipeline(messages, tracker)
 
-        # === 上下文利用率警告 ===
         utilization = tracker.get_utilization()
         if utilization >= WARNING_THRESHOLD:
             print(f"[warning: context at {utilization:.0%}, consider /compact]")
@@ -68,20 +70,14 @@ def agent_loop(
             txt = "\n".join(
                 f"[bg:{n['task_id']}] {n['status']}: {n['result']}" for n in notifs
             )
-            msg = {
-                "role": "user",
-                "content": f"<background-results>\n{txt}\n</background-results>",
-            }
+            msg = {"role": "user", "content": f"<background-results>\n{txt}\n</background-results>"}
             messages.append(msg)
             tracker.track_new_message(msg)
 
         # === 收件箱检查 ===
         inbox = state.bus.read_inbox("lead")
         if inbox:
-            msg = {
-                "role": "user",
-                "content": f"<inbox>{json.dumps(inbox, indent=2)}</inbox>",
-            }
+            msg = {"role": "user", "content": f"<inbox>{json.dumps(inbox, indent=2)}</inbox>"}
             messages.append(msg)
             tracker.track_new_message(msg)
 
@@ -94,8 +90,6 @@ def agent_loop(
             max_tokens=8000,
         )
         messages.append({"role": "assistant", "content": response.content})
-
-        # === 更新 Token 锚点 ===
         tracker.update_from_response(response)
 
         if response.stop_reason != "tool_use":
@@ -111,11 +105,7 @@ def agent_loop(
                     manual_compress = True
                 handler = tool_handlers.get(block.name)
                 try:
-                    output = (
-                        handler(**block.input)
-                        if handler
-                        else f"Unknown tool: {block.name}"
-                    )
+                    output = handler(**block.input) if handler else f"Unknown tool: {block.name}"
                 except Exception as e:
                     output = f"Error: {e}"
                 print(f"> {block.name}:")
@@ -130,24 +120,19 @@ def agent_loop(
 
         # === 待办提醒 ===
         rounds_without_todo = 0 if used_todo else rounds_without_todo + 1
-        if state.todo.has_open_items() and rounds_without_todo >= 3:
-            results.append({
-                "type": "text",
-                "text": "<reminder>Update your todos.</reminder>",
-            })
+        if state.todo and state.todo.has_open_items() and rounds_without_todo >= 3:
+            results.append({"type": "text", "text": "<reminder>Update your todos.</reminder>"})
 
         tool_msg = {"role": "user", "content": results}
         messages.append(tool_msg)
         tracker.track_new_message(tool_msg)
 
-        # === 手动压缩 ===
         if manual_compress:
             print("[manual compact]")
             messages[:] = auto_compact(messages, tracker)
-            breaker.record_success()  # 手动压缩成功重置断路器
+            breaker.record_success()
             return tracker, breaker
 
-        # === L5: AutoCompact 检查（在工具执行后） ===
         compacted = check_and_compact(messages, tracker, breaker)
         if compacted is not None:
             messages[:] = compacted
