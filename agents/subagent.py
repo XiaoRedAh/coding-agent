@@ -6,8 +6,11 @@ Explore 类型只能读取和执行命令，general-purpose 类型额外可以�
 子代理最多运行 30 轮工具调用循环。
 """
 
-from config import client, MODEL
-from tools.base import run_bash, run_read, run_write, run_edit
+from bootstrap.state import client, MODEL
+from tools.BashTool import handle as run_bash
+from tools.FileReadTool import handle as run_read
+from tools.FileWriteTool import handle as run_write
+from tools.FileEditTool import handle as run_edit
 
 
 def run_subagent(prompt: str, agent_type: str = "Explore") -> str:
@@ -25,7 +28,6 @@ def run_subagent(prompt: str, agent_type: str = "Explore") -> str:
     Returns:
         子代理的最终文本输出摘要
     """
-    # 基础工具集：命令执行和文件读取
     sub_tools = [
         {
             "name": "bash",
@@ -47,7 +49,6 @@ def run_subagent(prompt: str, agent_type: str = "Explore") -> str:
         },
     ]
 
-    # 非 Explore 类型追加写入和编辑工具
     if agent_type != "Explore":
         sub_tools += [
             {
@@ -77,21 +78,19 @@ def run_subagent(prompt: str, agent_type: str = "Explore") -> str:
             },
         ]
 
-    # 子代理的工具处理函数映射
     sub_handlers = {
-        "bash": lambda **kw: run_bash(kw["command"]),
-        "read_file": lambda **kw: run_read(kw["path"]),
+        "bash":       lambda **kw: run_bash(kw["command"]),
+        "read_file":  lambda **kw: run_read(kw["path"]),
         "write_file": lambda **kw: run_write(kw["path"], kw["content"]),
-        "edit_file": lambda **kw: run_edit(kw["path"], kw["old_text"], kw["new_text"]),
+        "edit_file":  lambda **kw: run_edit(kw["path"], kw["old_text"], kw["new_text"]),
     }
 
     sub_msgs = [{"role": "user", "content": prompt}]
     resp = None
 
-    # 最多 30 轮工具调用循环
     for _ in range(30):
         resp = client.messages.create(
-            model=MODEL, messages=sub_msgs, tools=sub_tools, max_tokens=8000
+            model=MODEL, messages=sub_msgs, tools=sub_tools, max_tokens=8000,
         )
         sub_msgs.append({"role": "assistant", "content": resp.content})
         if resp.stop_reason != "tool_use":
@@ -100,13 +99,11 @@ def run_subagent(prompt: str, agent_type: str = "Explore") -> str:
         for b in resp.content:
             if b.type == "tool_use":
                 h = sub_handlers.get(b.name, lambda **kw: "Unknown tool")
-                results.append(
-                    {
-                        "type": "tool_result",
-                        "tool_use_id": b.id,
-                        "content": str(h(**b.input))[:50000],
-                    }
-                )
+                results.append({
+                    "type": "tool_result",
+                    "tool_use_id": b.id,
+                    "content": str(h(**b.input))[:50000],
+                })
         sub_msgs.append({"role": "user", "content": results})
 
     if resp:

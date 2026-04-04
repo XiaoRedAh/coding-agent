@@ -1,5 +1,5 @@
 """
-agents 包 - 代理管理
+agents 包 - 代理系统
 
 包含子代理（subagent）和团队队友（teammate）的管理功能：
 - subagent: 一次性子代理，执行隔离的探索或工作任务

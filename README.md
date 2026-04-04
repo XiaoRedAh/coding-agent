@@ -2,33 +2,39 @@
 
 一个功能完整的 AI 编程代理，集成了工具调用、任务管理、上下文压缩、后台执行、团队协作等机制。基于 Anthropic Claude API 构建。
 
+项目结构参考 [Claude Code](https://github.com/anthropics/claude-code) 源码的架构模式进行组织。
+
 ## 架构概览
 
 ```
 +------------------------------------------------------------------+
 |                        CODING AGENT                               |
 |                                                                   |
-|  System prompt (技能加载 + 任务优先 + 待办提醒)                     |
+|  main.py (CLI 入口)                                               |
+|    ├── init(): 初始化所有全局单例 → bootstrap/state.py              |
+|    └── run_repl(): 分发到 screens/repl.py                         |
 |                                                                   |
-|  每次 LLM 调用前:                                                  |
-|  +--------------------+  +------------------+  +--------------+   |
-|  | 微压缩 + 自动压缩   |  | 后台任务通知      |  | 收件箱检查    |   |
-|  | (context)          |  | (background)     |  | (comm)       |   |
-|  +--------------------+  +------------------+  +--------------+   |
+|  query.py (核心查询循环):                                          |
+|  +----------------------------------------------------+         |
+|  | 压缩检查 -> 后台通知 -> 收件箱 -> LLM 调用 -> 工具执行 |         |
+|  +----------------------------------------------------+         |
 |                                                                   |
-|  工具分发 (tools/registry):                                        |
-|  +--------+----------+----------+---------+-----------+           |
-|  | bash   | read     | write    | edit    | TodoWrite |           |
-|  | task   | load_sk  | compress | bg_run  | bg_check  |           |
-|  | t_crt  | t_get    | t_upd    | t_list  | spawn_tm  |           |
-|  | list_tm| send_msg | rd_inbox | bcast   | shutdown  |           |
-|  | plan   | idle     | claim    |         |           |           |
-|  +--------+----------+----------+---------+-----------+           |
+|  工具分发 (tools/):                                                |
+|  +----------+------------+-----------+----------+                 |
+|  | BashTool | FileRead   | FileWrite | FileEdit |                 |
+|  | TodoTool | TaskTool   | AgentTool | SkillTool|                 |
+|  | BgTool   | CommTool   | Compress  |          |                 |
+|  +----------+------------+-----------+----------+                 |
 |                                                                   |
-|  子代理 (agents/subagent):  spawn -> work -> return summary       |
-|  队友 (agents/team):       spawn -> work -> idle -> auto-claim    |
-|  关闭协议 (communication): request_id handshake                    |
-|  计划审批 (communication): submit -> approve/reject                |
+|  服务层 (services/):                                               |
+|  +----------+-----------+------------+-------------+              |
+|  | compact  | bus       | tasks      | background  |              |
+|  | (压缩)   | (消息总线) | (持久任务)  | (后台执行)   |              |
+|  +----------+-----------+------------+-------------+              |
+|                                                                   |
+|  代理系统 (agents/):                                               |
+|  ├── subagent: spawn → work → return summary                     |
+|  └── team:     spawn → work → idle → auto-claim                  |
 +------------------------------------------------------------------+
 ```
 
@@ -36,48 +42,79 @@
 
 ```
 coding agent/
-├── README.md              # 本文件
-├── .env.example           # 环境变量示例
-├── requirements.txt       # Python 依赖
-├── main.py                # 入口文件（REPL + agent_loop）
-├── config.py              # 全局配置（路径、常量、客户端初始化）
-├── tools/
-│   ├── __init__.py        # 导出基础工具函数
-│   ├── base.py            # 核心工具：safe_path, run_bash, run_read, run_write, run_edit
-│   ├── registry.py        # TOOL_HANDLERS 工具处理函数映射表
-│   └── definitions.py     # 所有工具的 JSON Schema 定义
-├── planning/
-│   ├── __init__.py        # 导出 TodoManager 和 TaskManager
-│   ├── todo.py            # TodoManager - 内存待办清单
-│   └── tasks.py           # TaskManager - 文件持久化任务系统
-├── context/
-│   ├── __init__.py        # 导出压缩函数和 SkillLoader
-│   ├── compression.py     # token 估算、微压缩、自动压缩
-│   └── skills.py          # SkillLoader - SKILL.md 文件加载器
-├── agents/
-│   ├── __init__.py        # 导出 run_subagent 和 TeammateManager
-│   ├── subagent.py        # 一次性子代理（Explore / general-purpose）
-│   └── team.py            # TeammateManager - 持久化自主队友管理
-├── communication/
-│   ├── __init__.py        # 导出 MessageBus 和协议函数
-│   ├── bus.py             # MessageBus - 基于文件的消息总线
-│   └── protocols.py       # 关闭请求和计划审批协议
-└── background/
-    ├── __init__.py        # 导出 BackgroundManager
-    └── manager.py         # BackgroundManager - 异步后台命令执行
+├── main.py                    # CLI 主入口：初始化所有单例 + 分发到 REPL
+├── query.py                   # 核心查询循环（压缩→API调用→工具执行→通知）
+├── context.py                 # 上下文构建（系统提示词组装）
+│
+├── bootstrap/                 # 全局状态管理
+│   └── state.py               # 集中式状态存储（路径、客户端、阈值、运行时实例）
+│                              # 所有子系统通过访问器读写共享状态，避免 import 循环
+│
+├── screens/                   # 界面层
+│   └── repl.py                # REPL 交互界面（命令解析、输出渲染）
+│
+├── tools/                     # 工具系统（每个工具独立模块）
+│   ├── __init__.py            # 工具注册与组装（聚合所有定义和处理函数）
+│   ├── BashTool.py            # Shell 命令执行（含危险命令过滤）
+│   ├── FileReadTool.py        # 文件读取（支持行数限制）
+│   ├── FileWriteTool.py       # 文件写入（自动创建父目录）
+│   ├── FileEditTool.py        # 文件编辑（search-and-replace 策略）
+│   ├── TodoTool.py            # 内存待办清单（TodoManager）
+│   ├── TaskTool.py            # 持久化任务管理（创建/查询/更新/认领）
+│   ├── AgentTool.py           # 子代理派生（Explore / general-purpose）
+│   ├── SkillTool.py           # 技能加载（SKILL.md 文件）
+│   ├── BackgroundTool.py      # 后台命令执行（异步线程）
+│   ├── CommTool.py            # 通信工具（消息/广播/关闭/审批）
+│   └── CompressTool.py        # 上下文压缩信号
+│
+├── services/                  # 服务层
+│   ├── compact.py             # 压缩系统（token 估算、微压缩、自动压缩）
+│   ├── bus.py                 # 消息总线（基于文件的消息传递）
+│   ├── tasks.py               # 持久化任务管理器（JSON 文件存储）
+│   └── background.py          # 后台任务管理器（线程 + 通知队列）
+│
+├── agents/                    # 代理系统
+│   ├── subagent.py            # 一次性子代理（独立上下文，最多 30 轮）
+│   └── team.py                # 持久化自主队友（工作/空闲/关闭生命周期）
+│
+├── skills/                    # 技能系统
+│   └── loader.py              # SKILL.md 文件加载器（YAML frontmatter 解析）
+│
+├── utils/                     # 通用工具库
+│   └── path.py                # 路径安全检查（防路径逃逸）
+│
+├── .env.example               # 环境变量示例
+└── requirements.txt           # Python 依赖
 ```
 
-### 模块说明
+### 与 Claude Code 源码的结构对照
+
+| 本项目 | Claude Code 源码 | 职责 |
+|--------|-----------------|------|
+| `main.py` | `main.tsx` + `entrypoints/init.ts` | 入口初始化与分发 |
+| `query.py` | `query.ts` | 核心查询循环状态机 |
+| `context.py` | `context.ts` | 系统提示词构建 |
+| `bootstrap/state.py` | `bootstrap/state.ts` | 集中式状态存储 |
+| `screens/repl.py` | `screens/REPL.tsx` | 交互界面 |
+| `tools/*Tool.py` | `tools/BashTool/` 等 | 独立工具模块 |
+| `services/compact.py` | `services/compact/` | 压缩系统 |
+| `services/bus.py` | 无直接对应（类似 MCP） | 消息总线 |
+| `services/tasks.py` | 无直接对应 | 持久化任务管理 |
+| `agents/subagent.py` | `tools/AgentTool/` | 子代理 |
+| `agents/team.py` | `coordinator/` | 多代理协调 |
+| `skills/loader.py` | `skills/` | 技能系统 |
+| `utils/path.py` | `utils/` | 通用工具 |
+
+### 模块职责说明
 
 | 模块 | 职责 |
 |------|------|
-| `config.py` | 集中管理路径常量、API 客户端、模型配置、阈值参数 |
-| `tools/` | 文件/命令操作工具、JSON schema 定义、工具名到处理函数的映射 |
-| `planning/` | 两种任务管理：轻量内存待办（Todo）+ 文件持久化任务（Task） |
-| `context/` | 对话上下文压缩（三层策略）+ 技能文件加载 |
+| `bootstrap/state.py` | 集中管理路径常量、API 客户端、模型配置、阈值参数、运行时单例引用 |
+| `tools/` | 每个工具独立定义 JSON Schema 和处理函数，`__init__.py` 统一聚合 |
+| `services/` | 跨模块共享的核心服务：压缩、消息总线、任务持久化、后台执行 |
 | `agents/` | 子代理（一次性隔离任务）+ 团队队友（持久化自主工作） |
-| `communication/` | 消息总线（文件收件箱）+ 关闭/审批协议 |
-| `background/` | 异步后台命令执行，线程 + 通知队列 |
+| `skills/` | SKILL.md 技能文件扫描、解析与按需加载 |
+| `utils/` | 路径安全检查等通用工具函数 |
 
 ## 快速开始
 
@@ -154,4 +191,4 @@ Background task a1b2c3d4 started: pytest
 - **LLM API**: Anthropic Claude (anthropic SDK)
 - **并发**: threading（后台任务、队友线程）
 - **持久化**: JSON 文件（任务、团队配置、消息收件箱）
-- **架构模式**: 工具分发 + 依赖注入 + 消息队列
+- **架构模式**: 集中式状态管理 + 工具分发 + 服务层分离

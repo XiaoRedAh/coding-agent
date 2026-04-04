@@ -12,12 +12,15 @@ import json
 import threading
 import time
 
-from config import (
+from bootstrap.state import (
     WORKDIR, TEAM_DIR, TASKS_DIR,
     client, MODEL,
     POLL_INTERVAL, IDLE_TIMEOUT,
 )
-from tools.base import run_bash, run_read, run_write, run_edit
+from tools.BashTool import handle as run_bash
+from tools.FileReadTool import handle as run_read
+from tools.FileWriteTool import handle as run_write
+from tools.FileEditTool import handle as run_edit
 
 
 class TeammateManager:
@@ -28,8 +31,8 @@ class TeammateManager:
         初始化团队管理器。
 
         Args:
-            bus: MessageBus 实例，用于队友间通信
-            task_mgr: TaskManager 实例，用于任务认领
+            bus: MessageBus 实例
+            task_mgr: TaskManager 实例
         """
         TEAM_DIR.mkdir(exist_ok=True)
         self.bus = bus
@@ -56,19 +59,7 @@ class TeammateManager:
         return None
 
     def spawn(self, name: str, role: str, prompt: str) -> str:
-        """
-        创建并启动一个队友线程。
-
-        如果队友已存在且处于 idle/shutdown 状态，则重新激活。
-        否则创建新队友。
-
-        Args:
-            name: 队友名称
-            role: 队友角色描述
-            prompt: 初始任务提示词
-        Returns:
-            创建结果描述
-        """
+        """创建并启动一个队友线程"""
         member = self._find(name)
         if member:
             if member["status"] not in ("idle", "shutdown"):
@@ -80,7 +71,7 @@ class TeammateManager:
             self.config["members"].append(member)
         self._save()
         threading.Thread(
-            target=self._loop, args=(name, role, prompt), daemon=True
+            target=self._loop, args=(name, role, prompt), daemon=True,
         ).start()
         return f"Spawned '{name}' (role: {role})"
 
@@ -92,18 +83,7 @@ class TeammateManager:
             self._save()
 
     def _loop(self, name: str, role: str, prompt: str):
-        """
-        队友的主工作循环（运行在独立线程中）。
-
-        包含两个交替阶段：
-        1. 工作阶段：执行最多 50 轮工具调用
-        2. 空闲阶段：轮询消息和未认领任务
-
-        Args:
-            name: 队友名称
-            role: 队友角色
-            prompt: 初始提示词
-        """
+        """队友的主工作循环（运行在独立线程中）"""
         team_name = self.config["team_name"]
         sys_prompt = (
             f"You are '{name}', role: {role}, team: {team_name}, at {WORKDIR}. "
@@ -111,7 +91,6 @@ class TeammateManager:
         )
         messages = [{"role": "user", "content": prompt}]
 
-        # 队友可用的工具集
         tools = [
             {
                 "name": "bash",
@@ -187,7 +166,6 @@ class TeammateManager:
         while True:
             # === 工作阶段 ===
             for _ in range(50):
-                # 检查收件箱
                 inbox = self.bus.read_inbox(name)
                 for msg in inbox:
                     if msg.get("type") == "shutdown_request":
@@ -195,7 +173,6 @@ class TeammateManager:
                         return
                     messages.append({"role": "user", "content": json.dumps(msg)})
 
-                # 调用 LLM
                 try:
                     response = client.messages.create(
                         model=MODEL,
@@ -212,7 +189,6 @@ class TeammateManager:
                 if response.stop_reason != "tool_use":
                     break
 
-                # 执行工具调用
                 results = []
                 idle_requested = False
                 for block in response.content:
@@ -222,44 +198,37 @@ class TeammateManager:
                             output = "Entering idle phase."
                         elif block.name == "claim_task":
                             output = self.task_mgr.claim(
-                                block.input["task_id"], name
+                                block.input["task_id"], name,
                             )
                         elif block.name == "send_message":
                             output = self.bus.send(
-                                name, block.input["to"], block.input["content"]
+                                name, block.input["to"], block.input["content"],
                             )
                         else:
                             dispatch = {
-                                "bash": lambda **kw: run_bash(kw["command"]),
-                                "read_file": lambda **kw: run_read(kw["path"]),
-                                "write_file": lambda **kw: run_write(
-                                    kw["path"], kw["content"]
-                                ),
-                                "edit_file": lambda **kw: run_edit(
-                                    kw["path"], kw["old_text"], kw["new_text"]
-                                ),
+                                "bash":       lambda **kw: run_bash(kw["command"]),
+                                "read_file":  lambda **kw: run_read(kw["path"]),
+                                "write_file": lambda **kw: run_write(kw["path"], kw["content"]),
+                                "edit_file":  lambda **kw: run_edit(kw["path"], kw["old_text"], kw["new_text"]),
                             }
                             output = dispatch.get(
-                                block.name, lambda **kw: "Unknown"
+                                block.name, lambda **kw: "Unknown",
                             )(**block.input)
                         print(f"  [{name}] {block.name}: {str(output)[:120]}")
-                        results.append(
-                            {
-                                "type": "tool_result",
-                                "tool_use_id": block.id,
-                                "content": str(output),
-                            }
-                        )
+                        results.append({
+                            "type": "tool_result",
+                            "tool_use_id": block.id,
+                            "content": str(output),
+                        })
                 messages.append({"role": "user", "content": results})
                 if idle_requested:
                     break
 
-            # === 空闲阶段：轮询消息和未认领任务 ===
+            # === 空闲阶段 ===
             self._set_status(name, "idle")
             resume = False
             for _ in range(IDLE_TIMEOUT // max(POLL_INTERVAL, 1)):
                 time.sleep(POLL_INTERVAL)
-                # 检查收件箱
                 inbox = self.bus.read_inbox(name)
                 if inbox:
                     for msg in inbox:
@@ -267,11 +236,10 @@ class TeammateManager:
                             self._set_status(name, "shutdown")
                             return
                         messages.append(
-                            {"role": "user", "content": json.dumps(msg)}
+                            {"role": "user", "content": json.dumps(msg)},
                         )
                     resume = True
                     break
-                # 检查未认领的任务
                 unclaimed = []
                 for f in sorted(TASKS_DIR.glob("task_*.json")):
                     t = json.loads(f.read_text())
@@ -284,50 +252,33 @@ class TeammateManager:
                 if unclaimed:
                     task = unclaimed[0]
                     self.task_mgr.claim(task["id"], name)
-                    # 压缩上下文后的身份重新注入
                     if len(messages) <= 3:
-                        messages.insert(
-                            0,
-                            {
-                                "role": "user",
-                                "content": f"<identity>You are '{name}', role: {role}, team: {team_name}.</identity>",
-                            },
-                        )
-                        messages.insert(
-                            1,
-                            {
-                                "role": "assistant",
-                                "content": f"I am {name}. Continuing.",
-                            },
-                        )
-                    messages.append(
-                        {
+                        messages.insert(0, {
                             "role": "user",
-                            "content": f"<auto-claimed>Task #{task['id']}: {task['subject']}\n{task.get('description', '')}</auto-claimed>",
-                        }
-                    )
-                    messages.append(
-                        {
+                            "content": f"<identity>You are '{name}', role: {role}, team: {team_name}.</identity>",
+                        })
+                        messages.insert(1, {
                             "role": "assistant",
-                            "content": f"Claimed task #{task['id']}. Working on it.",
-                        }
-                    )
+                            "content": f"I am {name}. Continuing.",
+                        })
+                    messages.append({
+                        "role": "user",
+                        "content": f"<auto-claimed>Task #{task['id']}: {task['subject']}\n{task.get('description', '')}</auto-claimed>",
+                    })
+                    messages.append({
+                        "role": "assistant",
+                        "content": f"Claimed task #{task['id']}. Working on it.",
+                    })
                     resume = True
                     break
 
             if not resume:
-                # 超时无活动，自动关闭
                 self._set_status(name, "shutdown")
                 return
             self._set_status(name, "working")
 
     def list_all(self) -> str:
-        """
-        列出所有队友及其状态。
-
-        Returns:
-            格式化的队友列表字符串
-        """
+        """列出所有队友及其状态"""
         if not self.config["members"]:
             return "No teammates."
         lines = [f"Team: {self.config['team_name']}"]
