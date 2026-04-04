@@ -7,10 +7,11 @@ Explore 类型只能读取和执行命令，general-purpose 类型额外可以�
 """
 
 from bootstrap.state import client, MODEL
-from tools.BashTool import handle as run_bash
+from tools.BashTool import handle as run_shell
 from tools.FileReadTool import handle as run_read
 from tools.FileWriteTool import handle as run_write
 from tools.FileEditTool import handle as run_edit
+from utils.truncate import truncate_result
 
 
 def run_subagent(prompt: str, agent_type: str = "Explore") -> str:
@@ -19,19 +20,13 @@ def run_subagent(prompt: str, agent_type: str = "Explore") -> str:
 
     子代理拥有独立的消息上下文，不影响主对话。
     根据 agent_type 决定可用工具集：
-    - Explore: 只有 bash 和 read_file
+    - Explore: 只有 run_shell 和 read_file
     - 其他类型: 额外包含 write_file 和 edit_file
-
-    Args:
-        prompt: 子代理的任务提示词
-        agent_type: 代理类型（"Explore" 或 "general-purpose"）
-    Returns:
-        子代理的最终文本输出摘要
     """
     sub_tools = [
         {
-            "name": "bash",
-            "description": "Run command.",
+            "name": "run_shell",
+            "description": "Run shell command.",
             "input_schema": {
                 "type": "object",
                 "properties": {"command": {"type": "string"}},
@@ -40,11 +35,11 @@ def run_subagent(prompt: str, agent_type: str = "Explore") -> str:
         },
         {
             "name": "read_file",
-            "description": "Read file.",
+            "description": "Read file with line numbers.",
             "input_schema": {
                 "type": "object",
-                "properties": {"path": {"type": "string"}},
-                "required": ["path"],
+                "properties": {"file_path": {"type": "string"}},
+                "required": ["file_path"],
             },
         },
     ]
@@ -57,32 +52,32 @@ def run_subagent(prompt: str, agent_type: str = "Explore") -> str:
                 "input_schema": {
                     "type": "object",
                     "properties": {
-                        "path": {"type": "string"},
+                        "file_path": {"type": "string"},
                         "content": {"type": "string"},
                     },
-                    "required": ["path", "content"],
+                    "required": ["file_path", "content"],
                 },
             },
             {
                 "name": "edit_file",
-                "description": "Edit file.",
+                "description": "Edit file (exact string replacement).",
                 "input_schema": {
                     "type": "object",
                     "properties": {
-                        "path": {"type": "string"},
-                        "old_text": {"type": "string"},
-                        "new_text": {"type": "string"},
+                        "file_path": {"type": "string"},
+                        "old_string": {"type": "string"},
+                        "new_string": {"type": "string"},
                     },
-                    "required": ["path", "old_text", "new_text"],
+                    "required": ["file_path", "old_string", "new_string"],
                 },
             },
         ]
 
     sub_handlers = {
-        "bash":       lambda **kw: run_bash(kw["command"]),
-        "read_file":  lambda **kw: run_read(kw["path"]),
-        "write_file": lambda **kw: run_write(kw["path"], kw["content"]),
-        "edit_file":  lambda **kw: run_edit(kw["path"], kw["old_text"], kw["new_text"]),
+        "run_shell":  lambda **kw: run_shell(kw["command"]),
+        "read_file":  lambda **kw: run_read(kw["file_path"]),
+        "write_file": lambda **kw: run_write(kw["file_path"], kw["content"]),
+        "edit_file":  lambda **kw: run_edit(kw["file_path"], kw["old_string"], kw["new_string"]),
     }
 
     sub_msgs = [{"role": "user", "content": prompt}]
@@ -102,7 +97,7 @@ def run_subagent(prompt: str, agent_type: str = "Explore") -> str:
                 results.append({
                     "type": "tool_result",
                     "tool_use_id": b.id,
-                    "content": str(h(**b.input))[:50000],
+                    "content": truncate_result(str(h(**b.input))),
                 })
         sub_msgs.append({"role": "user", "content": results})
 

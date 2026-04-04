@@ -17,7 +17,7 @@ from bootstrap.state import (
     client, MODEL,
     POLL_INTERVAL, IDLE_TIMEOUT,
 )
-from tools.BashTool import handle as run_bash
+from tools.BashTool import handle as run_shell
 from tools.FileReadTool import handle as run_read
 from tools.FileWriteTool import handle as run_write
 from tools.FileEditTool import handle as run_edit
@@ -93,8 +93,8 @@ class TeammateManager:
 
         tools = [
             {
-                "name": "bash",
-                "description": "Run command.",
+                "name": "run_shell",
+                "description": "Run shell command.",
                 "input_schema": {
                     "type": "object",
                     "properties": {"command": {"type": "string"}},
@@ -103,11 +103,11 @@ class TeammateManager:
             },
             {
                 "name": "read_file",
-                "description": "Read file.",
+                "description": "Read file with line numbers.",
                 "input_schema": {
                     "type": "object",
-                    "properties": {"path": {"type": "string"}},
-                    "required": ["path"],
+                    "properties": {"file_path": {"type": "string"}},
+                    "required": ["file_path"],
                 },
             },
             {
@@ -116,23 +116,23 @@ class TeammateManager:
                 "input_schema": {
                     "type": "object",
                     "properties": {
-                        "path": {"type": "string"},
+                        "file_path": {"type": "string"},
                         "content": {"type": "string"},
                     },
-                    "required": ["path", "content"],
+                    "required": ["file_path", "content"],
                 },
             },
             {
                 "name": "edit_file",
-                "description": "Edit file.",
+                "description": "Edit file (exact string replacement).",
                 "input_schema": {
                     "type": "object",
                     "properties": {
-                        "path": {"type": "string"},
-                        "old_text": {"type": "string"},
-                        "new_text": {"type": "string"},
+                        "file_path": {"type": "string"},
+                        "old_string": {"type": "string"},
+                        "new_string": {"type": "string"},
                     },
-                    "required": ["path", "old_text", "new_text"],
+                    "required": ["file_path", "old_string", "new_string"],
                 },
             },
             {
@@ -206,10 +206,10 @@ class TeammateManager:
                             )
                         else:
                             dispatch = {
-                                "bash":       lambda **kw: run_bash(kw["command"]),
-                                "read_file":  lambda **kw: run_read(kw["path"]),
-                                "write_file": lambda **kw: run_write(kw["path"], kw["content"]),
-                                "edit_file":  lambda **kw: run_edit(kw["path"], kw["old_text"], kw["new_text"]),
+                                "run_shell":  lambda **kw: run_shell(kw["command"]),
+                                "read_file":  lambda **kw: run_read(kw["file_path"]),
+                                "write_file": lambda **kw: run_write(kw["file_path"], kw["content"]),
+                                "edit_file":  lambda **kw: run_edit(kw["file_path"], kw["old_string"], kw["new_string"]),
                             }
                             output = dispatch.get(
                                 block.name, lambda **kw: "Unknown",

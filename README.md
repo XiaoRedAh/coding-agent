@@ -44,7 +44,8 @@
 coding agent/
 ├── main.py                    # CLI 主入口：初始化所有单例 + 分发到 REPL
 ├── query.py                   # 核心查询循环（压缩→API调用→工具执行→通知）
-├── context.py                 # 上下文构建（系统提示词组装）
+├── context.py                 # 上下文构建（模板加载+CLAUDE.md发现+Git上下文）
+├── system-prompt.md           # 系统提示词 Markdown 模板（8个章节）
 │
 ├── bootstrap/                 # 全局状态管理
 │   └── state.py               # 集中式状态存储（路径、客户端、阈值、运行时实例）
@@ -55,14 +56,16 @@ coding agent/
 │
 ├── tools/                     # 工具系统（每个工具独立模块）
 │   ├── __init__.py            # 工具注册与组装（聚合所有定义和处理函数）
-│   ├── BashTool.py            # Shell 命令执行（含危险命令过滤）
-│   ├── FileReadTool.py        # 文件读取（支持行数限制）
+│   ├── FileReadTool.py        # 文件读取（带行号输出）
 │   ├── FileWriteTool.py       # 文件写入（自动创建父目录）
-│   ├── FileEditTool.py        # 文件编辑（search-and-replace 策略）
-│   ├── TodoTool.py            # 内存待办清单（TodoManager）
-│   ├── TaskTool.py            # 持久化任务管理（创建/查询/更新/认领）
+│   ├── FileEditTool.py        # 文件编辑（唯一匹配+引号容错+diff输出）
+│   ├── ListFilesTool.py       # 文件列表（glob 模式匹配）
+│   ├── GrepSearchTool.py      # 内容搜索（正则匹配+行号）
+│   ├── BashTool.py            # Shell 命令执行（退出码语义+stderr分离）
 │   ├── AgentTool.py           # 子代理派生（Explore / general-purpose）
 │   ├── SkillTool.py           # 技能加载（SKILL.md 文件）
+│   ├── TodoTool.py            # 内存待办清单（TodoManager）
+│   ├── TaskTool.py            # 持久化任务管理（创建/查询/更新/认领）
 │   ├── BackgroundTool.py      # 后台命令执行（异步线程）
 │   ├── CommTool.py            # 通信工具（消息/广播/关闭/审批）
 │   └── CompressTool.py        # 上下文压缩信号
@@ -81,7 +84,8 @@ coding agent/
 │   └── loader.py              # SKILL.md 文件加载器（YAML frontmatter 解析）
 │
 ├── utils/                     # 通用工具库
-│   └── path.py                # 路径安全检查（防路径逃逸）
+│   ├── path.py                # 路径安全检查（防路径逃逸）
+│   └── truncate.py            # 工具结果截断（保留头尾策略）
 │
 ├── .env.example               # 环境变量示例
 └── requirements.txt           # Python 依赖
