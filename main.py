@@ -25,6 +25,7 @@ from agents.team import TeammateManager
 from skills.loader import SkillLoader
 from services.permissions import PermissionRules
 from services.mcp import McpManager
+from services.memory import MemoryManager
 from screens.repl import run_repl
 
 
@@ -52,6 +53,7 @@ def init():
     state.perm_rules.load_from_settings()
     state.mcp = McpManager()
     state.mcp.load_and_connect()
+    state.memory = MemoryManager()
 
 
 def main():

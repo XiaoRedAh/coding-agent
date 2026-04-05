@@ -114,10 +114,15 @@ def build_system_prompt() -> str:
     if state.skills and state.skills.skills:
         skills_info = f"\nAvailable skills:\n{state.skills.descriptions()}"
 
-    # MCP Instructions 注入（对应 cc 的 getMcpInstructionsSection）
+    # MCP Instructions 注入
     mcp_instructions = ""
     if state.mcp and state.mcp.server_count > 0:
         mcp_instructions = "\n" + state.mcp.get_instructions()
+
+    # Memory 系统注入（对应 cc 的 loadMemoryPrompt → system prompt section）
+    memory_section = ""
+    if state.memory:
+        memory_section = "\n" + state.memory.get_prompt_section()
 
     return (
         template
@@ -129,4 +134,5 @@ def build_system_prompt() -> str:
         .replace("{{claude_md}}", claude_md)
         .replace("{{skills_info}}", skills_info)
         + mcp_instructions
+        + memory_section
     )

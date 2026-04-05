@@ -30,6 +30,7 @@ TASKS_DIR = PROJECT_DIR / "tasks"
 SKILLS_DIR = WORKDIR / "skills"
 TRANSCRIPT_DIR = PROJECT_DIR / "transcripts"
 SETTINGS_PATH = PROJECT_DIR / "settings.json"  # 权限规则等配置
+MEMORY_DIR = PROJECT_DIR / "memory"            # 记忆文件目录
 
 # === API 客户端与模型 ===
 client = Anthropic(base_url=os.getenv("ANTHROPIC_BASE_URL"))
@@ -81,3 +82,4 @@ team = None       # TeammateManager 实例
 skills = None     # SkillLoader 实例
 perm_rules = None # PermissionRules 实例
 mcp = None        # McpManager 实例
+memory = None     # MemoryManager 实例

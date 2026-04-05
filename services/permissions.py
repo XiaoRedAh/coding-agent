@@ -221,8 +221,14 @@ def check_permission(
             return {"action": "allow", "reason": "Session whitelist"}
         return {"action": "confirm", "reason": f"Dangerous command: {content}"}
 
-    # 2b. 危险路径保护（bypass-immune）
+    # 2b. Memory 目录白名单（写入记忆文件无需确认，对齐 cc 的 write carve-out）
     file_path = tool_input.get("file_path", "")
+    if file_path and tool_name in EDIT_TOOLS:
+        from bootstrap import state as _state
+        if _state.memory and _state.memory.is_memory_path(file_path):
+            return {"action": "allow", "reason": "Memory directory (whitelisted)"}
+
+    # 2c. 危险路径保护（bypass-immune）
     if file_path and tool_name in EDIT_TOOLS and is_dangerous_path(file_path):
         return {"action": "confirm", "reason": f"Dangerous path: {file_path}"}
 
