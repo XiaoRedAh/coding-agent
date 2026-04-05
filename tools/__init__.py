@@ -1,13 +1,12 @@
 """
 tools 包 - 工具注册与组装
 
-聚合所有工具模块的 JSON Schema 定义和处理函数映射。
-核心工具（6 个）: read_file, write_file, edit_file, list_files, grep_search, run_shell
-扩展工具（2 个）: agent, load_skill
-其他工具: TodoWrite, task_*, background_*, 通信工具, compress
+聚合内置工具和 MCP 工具的定义与处理函数。
+内置工具由各工具模块定义，MCP 工具由 McpManager 动态提供。
+两者在工具池中并列，通过 tools 参数统一传递给 Anthropic API。
 
-子 Agent 通过 agents/definitions.py 的 get_filtered_tools() 按工具名过滤本包的注册表，
-实现工具定义和处理函数的零重复复用。
+对应 Claude Code 的 assembleToolPool()：
+  内置工具（排序）+ MCP 工具（排序）→ 按名去重
 """
 
 from tools import (
@@ -20,7 +19,13 @@ from bootstrap import state
 
 
 def get_all_definitions() -> list:
-    """收集所有工具的 JSON Schema 定义。"""
+    """
+    收集所有工具定义（内置 + MCP）。
+
+    内置工具排在前面（稳定缓存前缀），MCP 工具追加在后面。
+    对应 cc 的分区排序策略。
+    """
+    # 内置工具
     defs = []
     for mod in [FileReadTool, FileWriteTool, FileEditTool,
                 ListFilesTool, GrepSearchTool, BashTool]:
@@ -31,11 +36,16 @@ def get_all_definitions() -> list:
     defs.append(CompressTool.DEFINITION)
     for mod in [TaskTool, BackgroundTool, CommTool]:
         defs.extend(mod.DEFINITIONS)
+
+    # MCP 工具（追加在后面，不打乱内置工具的顺序）
+    if state.mcp:
+        defs.extend(state.mcp.get_tool_definitions())
+
     return defs
 
 
 def get_all_handlers() -> dict:
-    """构建所有工具的处理函数映射表。"""
+    """构建所有工具的处理函数映射表（内置 + MCP）。"""
     handlers = {
         "read_file":    lambda **kw: FileReadTool.handle(kw["file_path"], kw.get("limit")),
         "write_file":   lambda **kw: FileWriteTool.handle(kw["file_path"], kw["content"]),
@@ -51,4 +61,9 @@ def get_all_handlers() -> dict:
     handlers.update(TaskTool.get_handlers())
     handlers.update(BackgroundTool.get_handlers())
     handlers.update(CommTool.get_handlers())
+
+    # MCP 工具处理函数
+    if state.mcp:
+        handlers.update(state.mcp.get_tool_handlers())
+
     return handlers

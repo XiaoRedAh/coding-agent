@@ -80,3 +80,4 @@ bus = None        # MessageBus 实例
 team = None       # TeammateManager 实例
 skills = None     # SkillLoader 实例
 perm_rules = None # PermissionRules 实例
+mcp = None        # McpManager 实例

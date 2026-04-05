@@ -24,6 +24,7 @@ from services.bus import MessageBus
 from agents.team import TeammateManager
 from skills.loader import SkillLoader
 from services.permissions import PermissionRules
+from services.mcp import McpManager
 from screens.repl import run_repl
 
 
@@ -47,12 +48,19 @@ def init():
     state.team = TeammateManager(state.bus, state.task_mgr)
     state.perm_rules = PermissionRules()
     state.perm_rules.load_from_settings()
+    state.mcp = McpManager()
+    state.mcp.load_and_connect()
 
 
 def main():
-    """程序入口：初始化 → 启动 REPL"""
+    """程序入口：初始化 → 启动 REPL → 清理"""
     init()
-    run_repl()
+    try:
+        run_repl()
+    finally:
+        # 优雅关闭 MCP 连接
+        if state.mcp:
+            state.mcp.close_all()
 
 
 if __name__ == "__main__":

@@ -114,6 +114,11 @@ def build_system_prompt() -> str:
     if state.skills and state.skills.skills:
         skills_info = f"\nAvailable skills:\n{state.skills.descriptions()}"
 
+    # MCP Instructions 注入（对应 cc 的 getMcpInstructionsSection）
+    mcp_instructions = ""
+    if state.mcp and state.mcp.server_count > 0:
+        mcp_instructions = "\n" + state.mcp.get_instructions()
+
     return (
         template
         .replace("{{cwd}}", str(WORKDIR))
@@ -123,4 +128,5 @@ def build_system_prompt() -> str:
         .replace("{{git_context}}", git_context)
         .replace("{{claude_md}}", claude_md)
         .replace("{{skills_info}}", skills_info)
+        + mcp_instructions
     )
