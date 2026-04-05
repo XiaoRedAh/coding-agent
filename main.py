@@ -16,7 +16,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from bootstrap import state
-from bootstrap.state import SKILLS_DIR
+from bootstrap.state import SKILLS_DIR, PROJECT_DIR, WORKDIR
 from tools.TodoTool import TodoManager
 from services.tasks import TaskManager
 from services.background import BackgroundManager
@@ -41,7 +41,9 @@ def init():
     6. TeammateManager - 团队管理（依赖 bus 和 task_mgr）
     """
     state.todo = TodoManager()
-    state.skills = SkillLoader(SKILLS_DIR)
+    # 多层技能来源（对齐 cc 的优先级：项目级 > 配置级 > 用户级）
+    user_skills_dir = Path.home() / ".xiaoagent" / "skills"
+    state.skills = SkillLoader(SKILLS_DIR, PROJECT_DIR / "skills", user_skills_dir)
     state.task_mgr = TaskManager()
     state.bg = BackgroundManager()
     state.bus = MessageBus()

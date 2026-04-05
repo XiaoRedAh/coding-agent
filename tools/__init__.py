@@ -54,7 +54,7 @@ def get_all_handlers() -> dict:
         "grep_search":  lambda **kw: GrepSearchTool.handle(kw["pattern"], kw.get("path"), kw.get("include")),
         "run_shell":    lambda **kw: BashTool.handle(kw["command"], kw.get("timeout", 120)),
         "agent":        lambda **kw: AgentTool.handle(kw["prompt"], kw.get("description", ""), kw.get("type", "general"), kw.get("run_in_background", False)),
-        "load_skill":   lambda **kw: SkillTool.handle(kw["name"]),
+        "load_skill":   lambda **kw: SkillTool.handle(kw["name"], kw.get("args", "")),
         "TodoWrite":    lambda **kw: state.todo.update(kw["items"]),
         "compress":     lambda **kw: CompressTool.handle(),
     }
