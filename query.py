@@ -22,6 +22,7 @@ from services.compact import (
 from tools import get_all_definitions, get_all_handlers
 from context import build_system_prompt
 from agents.coordinator import is_coordinator_mode, get_coordinator_config
+from services.permissions import check_permission
 
 
 def agent_loop(
@@ -95,21 +96,53 @@ def agent_loop(
         if response.stop_reason != "tool_use":
             return tracker, breaker
 
-        # === 工具执行 ===
+        # === 工具执行（含权限检查） ===
         results = []
         used_todo = False
         manual_compress = False
+        perm_mode = state.PERMISSION_MODE
         for block in response.content:
             if block.type == "tool_use":
                 if block.name == "compress":
                     manual_compress = True
-                handler = tool_handlers.get(block.name)
-                try:
-                    output = handler(**block.input) if handler else f"Unknown tool: {block.name}"
-                except Exception as e:
-                    output = f"Error: {e}"
-                print(f"> {block.name}:")
-                print(str(output)[:200])
+
+                # --- 权限检查 ---
+                perm = check_permission(block.name, block.input, perm_mode, state.perm_rules)
+
+                if perm["action"] == "deny":
+                    output = f"Permission denied: {perm['reason']}"
+                    print(f"> {block.name}: [DENIED] {perm['reason']}")
+                elif perm["action"] == "confirm":
+                    # 交互式确认
+                    print(f"\n  ⚠ {perm['reason']}")
+                    try:
+                        answer = input("  Allow? (y/n): ").strip().lower()
+                    except (EOFError, KeyboardInterrupt):
+                        answer = "n"
+                    if answer.startswith("y"):
+                        # 记住用户授权（会话级白名单）
+                        from services.permissions import _get_content_key
+                        key = f"{block.name}:{_get_content_key(block.name, block.input)}"
+                        state.perm_rules.add_session_allow(key)
+                        handler = tool_handlers.get(block.name)
+                        try:
+                            output = handler(**block.input) if handler else f"Unknown tool: {block.name}"
+                        except Exception as e:
+                            output = f"Error: {e}"
+                        print(f"> {block.name}:")
+                        print(str(output)[:200])
+                    else:
+                        output = "User denied this action."
+                        print(f"> {block.name}: [USER DENIED]")
+                else:  # allow
+                    handler = tool_handlers.get(block.name)
+                    try:
+                        output = handler(**block.input) if handler else f"Unknown tool: {block.name}"
+                    except Exception as e:
+                        output = f"Error: {e}"
+                    print(f"> {block.name}:")
+                    print(str(output)[:200])
+
                 results.append({
                     "type": "tool_result",
                     "tool_use_id": block.id,

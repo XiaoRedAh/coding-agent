@@ -40,10 +40,11 @@ _EXIT1_OK_COMMANDS = {"grep", "diff", "test", "cmp", "comm"}
 
 
 def handle(command: str, timeout: int = 120) -> str:
-    """执行 shell 命令，分离 stdout/stderr 并报告退出码"""
-    dangerous = ["rm -rf /", "sudo", "shutdown", "reboot", "> /dev/"]
-    if any(d in command for d in dangerous):
-        return "Error: Dangerous command blocked"
+    """执行 shell 命令，分离 stdout/stderr 并报告退出码。
+
+    危险命令检测已移至 services/permissions.py 的权限管线中，
+    在 query.py 的工具执行前统一检查。
+    """
     try:
         r = subprocess.run(
             command,

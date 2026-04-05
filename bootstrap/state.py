@@ -23,11 +23,13 @@ if os.getenv("ANTHROPIC_BASE_URL"):
 
 # === 路径常量 ===
 WORKDIR = Path.cwd()
-TEAM_DIR = WORKDIR / ".team"
+PROJECT_DIR = WORKDIR / ".xiaoagent"          # 项目配置根目录
+TEAM_DIR = PROJECT_DIR / "team"
 INBOX_DIR = TEAM_DIR / "inbox"
-TASKS_DIR = WORKDIR / ".tasks"
+TASKS_DIR = PROJECT_DIR / "tasks"
 SKILLS_DIR = WORKDIR / "skills"
-TRANSCRIPT_DIR = WORKDIR / ".transcripts"
+TRANSCRIPT_DIR = PROJECT_DIR / "transcripts"
+SETTINGS_PATH = PROJECT_DIR / "settings.json"  # 权限规则等配置
 
 # === API 客户端与模型 ===
 client = Anthropic(base_url=os.getenv("ANTHROPIC_BASE_URL"))
@@ -57,6 +59,9 @@ POST_COMPACT_MAX_FILES = 5
 POST_COMPACT_MAX_TOKENS_PER_FILE = 5000
 POST_COMPACT_SKILLS_BUDGET = 25000
 
+# === 权限模式 ===
+PERMISSION_MODE = os.getenv("PERMISSION_MODE", "default")  # default/plan/acceptEdits/bypassPermissions/dontAsk
+
 # === 其他阈值 ===
 POLL_INTERVAL = 5
 IDLE_TIMEOUT = 60
@@ -74,3 +79,4 @@ bg = None         # BackgroundManager 实例
 bus = None        # MessageBus 实例
 team = None       # TeammateManager 实例
 skills = None     # SkillLoader 实例
+perm_rules = None # PermissionRules 实例

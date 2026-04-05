@@ -23,6 +23,7 @@ from services.background import BackgroundManager
 from services.bus import MessageBus
 from agents.team import TeammateManager
 from skills.loader import SkillLoader
+from services.permissions import PermissionRules
 from screens.repl import run_repl
 
 
@@ -44,6 +45,8 @@ def init():
     state.bg = BackgroundManager()
     state.bus = MessageBus()
     state.team = TeammateManager(state.bus, state.task_mgr)
+    state.perm_rules = PermissionRules()
+    state.perm_rules.load_from_settings()
 
 
 def main():
