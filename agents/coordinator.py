@@ -32,13 +32,11 @@ def is_coordinator_mode() -> bool:
 
 # Coordinator 只有管理权，没有执行权（不能直接改文件）
 COORDINATOR_ALLOWED_TOOLS = frozenset({
-    "agent",            # 派生 Worker
+    "agent",            # 派生 Worker 或创建队友（统一入口）
     "send_message",     # 向队友发消息
     "read_inbox",       # 读取收件箱
     "broadcast",        # 广播消息
-    "spawn_teammate",   # 创建持久队友
     "list_teammates",   # 列出队友
-    "compress",         # 手动压缩
 })
 
 

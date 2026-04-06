@@ -26,6 +26,7 @@ from skills.loader import SkillLoader
 from services.permissions import PermissionRules
 from services.mcp import McpManager
 from services.memory import MemoryManager
+from agents.task_queue import AgentTaskQueue
 from screens.repl import run_repl
 
 
@@ -54,6 +55,7 @@ def init():
     state.mcp = McpManager()
     state.mcp.load_and_connect()
     state.memory = MemoryManager()
+    state.agent_tasks = AgentTaskQueue()
 
 
 def main():

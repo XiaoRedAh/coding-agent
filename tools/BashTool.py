@@ -1,15 +1,19 @@
 """
 tools/BashTool.py - Shell 命令执行工具
 
-执行 shell 命令，带有危险命令过滤、超时保护和退出码语义理解。
-改进点：分离 stdout/stderr，报告退出码，理解 grep/diff 等命令的特殊退出码。
+支持同步和异步（后台）两种执行方式。
+- 同步（默认）：阻塞等待命令完成
+- 异步（run_in_background=True）：后台线程执行，结果通过通知队列回传
 
-对应 Claude Code 的 BashTool（18 个源文件的大幅简化版）。
+对应 Claude Code 的 BashTool（同时包含 run_in_background 参数）。
 """
 
 import subprocess
+import threading
+import uuid
 
 from bootstrap.state import WORKDIR
+from bootstrap import state
 from utils.truncate import truncate_result
 
 DEFINITION = {
@@ -17,7 +21,7 @@ DEFINITION = {
     "description": (
         "Run a shell command. Use this only for actual shell operations. "
         "Prefer read_file, write_file, edit_file, list_files, grep_search "
-        "for file operations."
+        "for file operations. Set run_in_background=true for long-running commands."
     ),
     "input_schema": {
         "type": "object",
@@ -30,6 +34,13 @@ DEFINITION = {
                 "type": "integer",
                 "description": "Timeout in seconds (default 120)",
             },
+            "run_in_background": {
+                "type": "boolean",
+                "description": (
+                    "Run in background. You'll be notified when done. "
+                    "Use for long-running commands (build, install, test suites)."
+                ),
+            },
         },
         "required": ["command"],
     },
@@ -39,20 +50,19 @@ DEFINITION = {
 _EXIT1_OK_COMMANDS = {"grep", "diff", "test", "cmp", "comm"}
 
 
-def handle(command: str, timeout: int = 120) -> str:
-    """执行 shell 命令，分离 stdout/stderr 并报告退出码。
+def handle(command: str, timeout: int = 120, run_in_background: bool = False) -> str:
+    """执行 shell 命令。run_in_background=True 时在后台线程执行。"""
+    if run_in_background:
+        return _run_background(command, timeout)
+    return _run_sync(command, timeout)
 
-    危险命令检测已移至 services/permissions.py 的权限管线中，
-    在 query.py 的工具执行前统一检查。
-    """
+
+def _run_sync(command: str, timeout: int) -> str:
+    """同步执行 shell 命令"""
     try:
         r = subprocess.run(
-            command,
-            shell=True,
-            cwd=WORKDIR,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
+            command, shell=True, cwd=WORKDIR,
+            capture_output=True, text=True, timeout=timeout,
         )
         stdout = r.stdout.strip()
         stderr = r.stderr.strip()
@@ -60,7 +70,6 @@ def handle(command: str, timeout: int = 120) -> str:
         if r.returncode == 0:
             return truncate_result(stdout if stdout else "(no output)")
 
-        # 退出码 1 对某些命令是正常行为（如 grep 无匹配）
         cmd_name = command.strip().split()[0] if command.strip() else ""
         if r.returncode == 1 and cmd_name in _EXIT1_OK_COMMANDS:
             result = stdout if stdout else "(no matches)"
@@ -68,7 +77,6 @@ def handle(command: str, timeout: int = 120) -> str:
                 result += f"\nStderr: {stderr}"
             return truncate_result(result)
 
-        # 真正的错误
         parts = [f"Command failed (exit code {r.returncode})"]
         if stdout:
             parts.append(f"Stdout:\n{stdout}")
@@ -77,3 +85,27 @@ def handle(command: str, timeout: int = 120) -> str:
         return truncate_result("\n".join(parts))
     except subprocess.TimeoutExpired:
         return f"Error: Command timed out after {timeout}s"
+
+
+def _run_background(command: str, timeout: int) -> str:
+    """后台线程执行，结果通过 bg.notifications 回传到 query.py"""
+    tid = str(uuid.uuid4())[:8]
+
+    def _exec():
+        try:
+            r = subprocess.run(
+                command, shell=True, cwd=WORKDIR,
+                capture_output=True, text=True, timeout=timeout,
+            )
+            output = (r.stdout + r.stderr).strip()[:50000]
+            result = output or "(no output)"
+            status = "completed"
+        except Exception as e:
+            result = str(e)
+            status = "error"
+        state.bg.notifications.put({
+            "task_id": tid, "status": status, "result": result[:500],
+        })
+
+    threading.Thread(target=_exec, daemon=True).start()
+    return f"Background task {tid} started: {command[:80]}. You'll be notified when done."

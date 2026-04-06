@@ -93,8 +93,13 @@ class TeammateManager:
                 return m
         return None
 
-    def spawn(self, name: str, role: str, prompt: str) -> str:
-        """创建并启动一个队友线程"""
+    def spawn(self, name: str, role: str, prompt: str, agent_type: str = "general") -> str:
+        """
+        创建并启动一个队友线程。
+
+        agent_type 可以指定内置 Agent 类型（explore/plan/general/verification），
+        队友的系统提示和工具集将从 definitions.py 获取。
+        """
         member = self._find(name)
         if member:
             if member["status"] not in ("idle", "shutdown"):
@@ -102,13 +107,13 @@ class TeammateManager:
             member["status"] = "working"
             member["role"] = role
         else:
-            member = {"name": name, "role": role, "status": "working"}
+            member = {"name": name, "role": role, "status": "working", "type": agent_type}
             self.config["members"].append(member)
         self._save()
         threading.Thread(
-            target=self._loop, args=(name, role, prompt), daemon=True,
+            target=self._loop, args=(name, role, prompt, agent_type), daemon=True,
         ).start()
-        return f"Spawned '{name}' (role: {role})"
+        return f"Spawned '{name}' (role: {role}, type: {agent_type})"
 
     def _set_status(self, name: str, status: str):
         member = self._find(name)
@@ -145,22 +150,36 @@ class TeammateManager:
             f"- You may auto-claim unclaimed tasks from the task board"
         )
 
-    def _build_teammate_tools(self) -> tuple[list, dict]:
+    def _build_teammate_tools(self, agent_type: str = "general") -> tuple[list, dict]:
         """
-        构建队友的工具集：全局核心工具 + 队友专用工具。
+        构建队友的工具集：基于 Agent 类型的核心工具 + 队友专用工具。
 
-        从全局 tools/ 包动态过滤核心工具（零重复维护），
-        加上队友特有的 send_message / idle / claim_task。
+        复用 definitions.py 的类型配置——explore 队友只有只读工具，
+        general 队友有全部工具。加上队友特有的通信工具。
         """
-        core_defs, core_handlers = get_filtered_tools(GENERAL_TOOLS)
+        from agents.definitions import get_agent_config
+        try:
+            config = get_agent_config(agent_type)
+            allowed_tools = config["allowed_tools"]
+        except ValueError:
+            allowed_tools = GENERAL_TOOLS
+        core_defs, core_handlers = get_filtered_tools(allowed_tools)
         all_defs = core_defs + _TEAM_EXTRA_TOOL_DEFS
-        # 队友专用工具的 handler 在 _loop 中通过闭包绑定（需要 self.bus 等）
         return all_defs, core_handlers
 
-    def _loop(self, name: str, role: str, prompt: str):
+    def _loop(self, name: str, role: str, prompt: str, agent_type: str = "general"):
         """队友的主工作循环（运行在独立线程中）"""
-        sys_prompt = self._build_system_prompt(name, role)
-        tool_defs, core_handlers = self._build_teammate_tools()
+        # 如果指定了 Agent 类型，混合使用该类型的系统提示
+        from agents.definitions import get_agent_config
+        type_prompt = ""
+        try:
+            config = get_agent_config(agent_type)
+            type_prompt = config["system_prompt"] + "\n\n"
+        except ValueError:
+            pass
+
+        sys_prompt = type_prompt + self._build_system_prompt(name, role)
+        tool_defs, core_handlers = self._build_teammate_tools(agent_type)
         messages = [{"role": "user", "content": prompt}]
 
         # 队友专用工具处理器（需要闭包访问 self）

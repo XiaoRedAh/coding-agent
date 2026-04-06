@@ -1,15 +1,13 @@
 """
-tools/AgentTool.py - 子代理派生工具
+tools/AgentTool.py - 统一的 Agent 派生工具
 
-LLM 通过此工具派生独立的子 Agent 执行隔离任务。
-支持同步（阻塞）和异步（后台）两种执行方式。
+LLM 通过此工具派生子 Agent 或创建持久队友（统一入口）。
 
-同步/异步决策：
-- run_in_background=True → 异步
-- agent 定义 background=True（如 verification）→ 异步
-- 否则 → 同步
-
-对应 Claude Code 的 AgentTool.tsx。
+路由逻辑（对齐 CC 的 AgentTool.tsx）：
+- 有 name 参数 → Team 路径（创建持久队友）
+- 无 name 参数 → SubAgent 路径（一次性子代理）
+  - run_in_background=True 或 agent.background=True → 异步
+  - 否则 → 同步
 """
 
 from agents.definitions import AGENT_DEFINITIONS
@@ -17,35 +15,51 @@ from agents.definitions import AGENT_DEFINITIONS
 DEFINITION = {
     "name": "agent",
     "description": (
-        "Launch a sub-agent to handle a task autonomously. "
-        "Types: 'explore' (read-only fast search), 'plan' (structured planning), "
-        "'general' (full tools), 'verification' (adversarial testing). "
-        "Set run_in_background=true for long tasks that shouldn't block you."
+        "Launch a sub-agent or create a persistent teammate. "
+        "Sub-agents run independently with isolated context. "
+        "Add 'name' to create a persistent teammate (Swarm Team mode) "
+        "that stays running and can communicate via send_message."
     ),
     "input_schema": {
         "type": "object",
         "properties": {
             "description": {
                 "type": "string",
-                "description": "Short (3-5 word) description of the task",
+                "description": "Short (3-5 word) task description",
             },
             "prompt": {
                 "type": "string",
                 "description": (
-                    "Detailed task instructions. Must be self-contained — "
+                    "Detailed task instructions. Must be self-contained: "
                     "include file paths, context, and expected output."
                 ),
             },
             "type": {
                 "type": "string",
                 "enum": list(AGENT_DEFINITIONS.keys()),
-                "description": "Agent type (default: general)",
+                "description": (
+                    "Agent type. "
+                    "'explore': read-only codebase search (fast, safe). "
+                    "'plan': structured implementation planning (read-only). "
+                    "'general': full tools (read/write/edit/shell). "
+                    "'verification': adversarial testing (read-only, always background). "
+                    "Default: general."
+                ),
             },
             "run_in_background": {
                 "type": "boolean",
                 "description": (
-                    "Run in background (async). You'll be notified when done. "
-                    "Use for long-running tasks."
+                    "Run asynchronously in background. You'll receive a "
+                    "<task-notification> when done. Use for long-running tasks."
+                ),
+            },
+            "name": {
+                "type": "string",
+                "description": (
+                    "If provided, creates a persistent teammate (Swarm Team mode). "
+                    "The teammate runs in a background thread, stays alive until "
+                    "shutdown, and can communicate via send_message. "
+                    "Omit for a one-shot sub-agent. Example: 'researcher', 'reviewer'."
                 ),
             },
         },
@@ -59,12 +73,17 @@ def handle(
     description: str = "",
     type: str = "general",
     run_in_background: bool = False,
+    name: str = None,
 ) -> str:
-    """派生子代理执行任务。"""
+    """统一入口：SubAgent 或 Team 队友。"""
+    if name:
+        from bootstrap import state
+        if not state.team:
+            return "Error: Team system not initialized"
+        return state.team.spawn(name, role=description, prompt=prompt, agent_type=type)
+
     from agents.definitions import get_agent_config
     config = get_agent_config(type)
-
-    # 异步决策：用户显式指定 or Agent 定义强制后台
     should_async = run_in_background or config.get("background", False)
 
     if should_async:

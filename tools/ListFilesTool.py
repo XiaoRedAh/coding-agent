@@ -16,8 +16,8 @@ from utils.truncate import truncate_result
 DEFINITION = {
     "name": "list_files",
     "description": (
-        "List files matching a glob pattern. Returns matching file paths "
-        "sorted by modification time. Use this instead of find or ls."
+        "List files matching a glob pattern. Returns file paths "
+        "sorted by modification time (newest first). Use this instead of find or ls."
     ),
     "input_schema": {
         "type": "object",

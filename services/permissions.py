@@ -268,7 +268,7 @@ def check_permission(
         return {"action": "allow", "reason": "Session whitelist"}
 
     # 3g. 安全工具（agent, compress 等）直接放行
-    if tool_name in {"agent", "compress", "TodoWrite", "task_create", "task_get",
+    if tool_name in {"agent", "TodoWrite", "task_create", "task_get",
                       "task_update", "task_list"}:
         return {"action": "allow", "reason": "Safe tool"}
 

@@ -1,28 +1,44 @@
 """
 tools/TodoTool.py - 待办事项工具
 
-实现轻量级内存待办清单，用于短期任务跟踪。
-支持 pending / in_progress / completed 三种状态，最多 20 条，
-同一时间只允许一条处于 in_progress 状态。
+轻量级内存待办清单，用于短期任务跟踪（会话内有效，不持久化）。
+支持 pending / in_progress / completed 三种状态，最多 20 条。
 """
 
 DEFINITION = {
     "name": "TodoWrite",
-    "description": "Update task tracking list.",
+    "description": (
+        "Update the task tracking checklist (in-memory, session-scoped). "
+        "This REPLACES the entire list — include all items you want to keep. "
+        "Max 20 items, only 1 can be in_progress at a time. "
+        "Use for tracking progress on multi-step work within a conversation."
+    ),
     "input_schema": {
         "type": "object",
         "properties": {
             "items": {
                 "type": "array",
+                "description": "Complete list of todo items (replaces existing list)",
                 "items": {
                     "type": "object",
                     "properties": {
-                        "content": {"type": "string"},
+                        "content": {
+                            "type": "string",
+                            "description": "Task description",
+                        },
                         "status": {
                             "type": "string",
                             "enum": ["pending", "in_progress", "completed"],
+                            "description": "Task state",
                         },
-                        "activeForm": {"type": "string"},
+                        "activeForm": {
+                            "type": "string",
+                            "description": (
+                                "Present-continuous description shown for in_progress items "
+                                "(e.g. 'Running tests', 'Writing auth module'). "
+                                "Use a short phrase for any status."
+                            ),
+                        },
                     },
                     "required": ["content", "status", "activeForm"],
                 },
@@ -63,22 +79,16 @@ class TodoManager:
         return self.render()
 
     def render(self) -> str:
-        """渲染待办列表为可读文本"""
         if not self.items:
             return "No todos."
         lines = []
         for item in self.items:
-            m = {"completed": "[x]", "in_progress": "[>]", "pending": "[ ]"}.get(
-                item["status"], "[?]"
-            )
-            suffix = (
-                f" <- {item['activeForm']}" if item["status"] == "in_progress" else ""
-            )
+            m = {"completed": "[x]", "in_progress": "[>]", "pending": "[ ]"}.get(item["status"], "[?]")
+            suffix = f" <- {item['activeForm']}" if item["status"] == "in_progress" else ""
             lines.append(f"{m} {item['content']}{suffix}")
         done = sum(1 for t in self.items if t["status"] == "completed")
         lines.append(f"\n({done}/{len(self.items)} completed)")
         return "\n".join(lines)
 
     def has_open_items(self) -> bool:
-        """检查是否还有未完成的待办项"""
         return any(item.get("status") != "completed" for item in self.items)

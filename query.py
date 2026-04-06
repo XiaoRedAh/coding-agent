@@ -17,7 +17,7 @@ from bootstrap import state
 from bootstrap.state import client, MODEL, WARNING_THRESHOLD
 from services.compact import (
     TokenTracker, CircuitBreaker,
-    run_compression_pipeline, check_and_compact, auto_compact,
+    run_compression_pipeline, check_and_compact,
 )
 from tools import get_all_definitions, get_all_handlers
 from context import build_system_prompt
@@ -65,15 +65,33 @@ def agent_loop(
         if utilization >= WARNING_THRESHOLD:
             print(f"[warning: context at {utilization:.0%}, consider /compact]")
 
-        # === 后台通知 ===
-        notifs = state.bg.drain()
-        if notifs:
+        # === 后台 Shell 通知 ===
+        bg_notifs = state.bg.drain()
+        if bg_notifs:
             txt = "\n".join(
-                f"[bg:{n['task_id']}] {n['status']}: {n['result']}" for n in notifs
+                f"[bg:{n['task_id']}] {n['status']}: {n['result']}" for n in bg_notifs
             )
             msg = {"role": "user", "content": f"<background-results>\n{txt}\n</background-results>"}
             messages.append(msg)
             tracker.track_new_message(msg)
+
+        # === 异步 Agent 通知（独立于 Shell 后台） ===
+        if state.agent_tasks:
+            agent_notifs = state.agent_tasks.drain()
+            if agent_notifs:
+                parts = []
+                for n in agent_notifs:
+                    parts.append(
+                        f"<task-notification>\n"
+                        f"  <task-id>{n['task_id']}</task-id>\n"
+                        f"  <type>{n['agent_type']}</type>\n"
+                        f"  <status>{n['status']}</status>\n"
+                        f"  <result>{n['result']}</result>\n"
+                        f"</task-notification>"
+                    )
+                msg = {"role": "user", "content": "\n".join(parts)}
+                messages.append(msg)
+                tracker.track_new_message(msg)
 
         # === 收件箱检查 ===
         inbox = state.bus.read_inbox("lead")
@@ -99,13 +117,9 @@ def agent_loop(
         # === 工具执行（含权限检查） ===
         results = []
         used_todo = False
-        manual_compress = False
         perm_mode = state.PERMISSION_MODE
         for block in response.content:
             if block.type == "tool_use":
-                if block.name == "compress":
-                    manual_compress = True
-
                 # --- 权限检查 ---
                 perm = check_permission(block.name, block.input, perm_mode, state.perm_rules)
 
@@ -160,12 +174,7 @@ def agent_loop(
         messages.append(tool_msg)
         tracker.track_new_message(tool_msg)
 
-        if manual_compress:
-            print("[manual compact]")
-            messages[:] = auto_compact(messages, tracker)
-            breaker.record_success()
-            return tracker, breaker
-
+        # === L5: AutoCompact 检查 ===
         compacted = check_and_compact(messages, tracker, breaker)
         if compacted is not None:
             messages[:] = compacted

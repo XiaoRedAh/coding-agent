@@ -83,3 +83,4 @@ skills = None     # SkillLoader 实例
 perm_rules = None # PermissionRules 实例
 mcp = None        # McpManager 实例
 memory = None     # MemoryManager 实例
+agent_tasks = None # AgentTaskQueue 实例（异步 SubAgent 结果通知）
