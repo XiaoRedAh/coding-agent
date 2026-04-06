@@ -44,7 +44,7 @@ EDIT_TOOLS = frozenset({"write_file", "edit_file"})
 DANGEROUS_PATTERNS = [
     # Unix 通用
     re.compile(r"\brm\s+.*-[rR]", re.IGNORECASE),       # rm -r / rm -rf
-    re.compile(r"\bgit\s+(push\s+.*--force|reset\s+--hard|clean\s+-[fdx])"),
+    re.compile(r"\bgit\s+(push\s+.*(-f|--force)|reset\s+--hard|clean\s+-[fdx])"),
     re.compile(r"\bsudo\b"),
     re.compile(r"\bmkfs\b"),
     re.compile(r"\bdd\s"),
@@ -54,7 +54,7 @@ DANGEROUS_PATTERNS = [
     re.compile(r"\breboot\b"),
     re.compile(r"\bshutdown\b"),
     re.compile(r"\bchmod\s+777\b"),
-    re.compile(r"\bcurl\b.*\|\s*(ba)?sh"),               # curl | sh 管道注入
+    re.compile(r"\b(curl|wget)\b.*\|\s*(ba)?sh"),          # curl/wget | sh 管道注入
     # Windows
     re.compile(r"\bdel\s", re.IGNORECASE),
     re.compile(r"\brmdir\s", re.IGNORECASE),
@@ -76,14 +76,22 @@ def is_dangerous_command(command: str) -> bool:
 
 
 def is_dangerous_path(file_path: str) -> bool:
-    """检测文件路径是否在危险路径列表中"""
+    """检测文件路径是否在危险路径列表中（含前缀匹配如 .env.production）"""
     path = Path(file_path)
     parts = path.parts
     for part in parts:
         if part in DANGEROUS_PATHS:
             return True
-    if path.name in DANGEROUS_PATHS:
+        # 前缀匹配：.env.production, .env.local 等变体
+        for dp in DANGEROUS_PATHS:
+            if part.startswith(dp + ".") or part.startswith(dp + "/"):
+                return True
+    name = path.name
+    if name in DANGEROUS_PATHS:
         return True
+    for dp in DANGEROUS_PATHS:
+        if name.startswith(dp + "."):
+            return True
     return False
 
 
@@ -212,67 +220,75 @@ def check_permission(
     if deny_match:
         return {"action": "deny", "reason": f"Blocked by deny rule: {deny_match}"}
 
-    # ═══ Layer 2: 危险检测 + safety check（bypass-immune） ═══
+    # ═══ Layer 2: 模式级硬性拒绝（优先于危险检测） ═══
+    # plan 和 dontAsk 模式的拒绝比 "confirm" 更严格——如果模式直接拒绝该工具类型，
+    # 就不需要走到 confirm 环节（confirm 意味着"可以问用户"，但 plan/dontAsk 不允许问）
 
-    # 2a. Shell 命令危险检测
-    if tool_name == "run_shell" and is_dangerous_command(tool_input.get("command", "")):
-        # 会话白名单可以跳过
-        if rules.is_session_allowed(f"run_shell:{content}"):
-            return {"action": "allow", "reason": "Session whitelist"}
-        return {"action": "confirm", "reason": f"Dangerous command: {content}"}
-
-    # 2b. Memory 目录白名单（写入记忆文件无需确认，对齐 cc 的 write carve-out）
-    file_path = tool_input.get("file_path", "")
-    if file_path and tool_name in EDIT_TOOLS:
-        from bootstrap import state as _state
-        if _state.memory and _state.memory.is_memory_path(file_path):
-            return {"action": "allow", "reason": "Memory directory (whitelisted)"}
-
-    # 2c. 危险路径保护（bypass-immune）
-    if file_path and tool_name in EDIT_TOOLS and is_dangerous_path(file_path):
-        return {"action": "confirm", "reason": f"Dangerous path: {file_path}"}
-
-    # 2c. 工作目录外路径保护（写操作）
-    if file_path and tool_name in EDIT_TOOLS and is_outside_workdir(file_path):
-        return {"action": "confirm", "reason": f"Outside working directory: {file_path}"}
-
-    # ═══ Layer 3: 模式决策 ═══
-
-    # 3a. bypassPermissions 模式：通过（前面的 bypass-immune 检查已过）
-    if mode == "bypassPermissions":
-        return {"action": "allow", "reason": "Bypass mode"}
-
-    # 3b. 只读工具：所有模式下直接放行
     if tool_name in READ_TOOLS:
         return {"action": "allow", "reason": "Read-only tool"}
 
-    # 3c. plan 模式：拒绝编辑和 shell
     if mode == "plan":
         if tool_name in EDIT_TOOLS:
             return {"action": "deny", "reason": "Edit blocked in plan mode"}
         if tool_name == "run_shell":
             return {"action": "deny", "reason": "Shell blocked in plan mode"}
 
-    # 3d. acceptEdits 模式：编辑工具自动放行
+    # ═══ Layer 3: 危险检测 + safety check（bypass-immune） ═══
+
+    # 3a. Shell 命令危险检测
+    if tool_name == "run_shell" and is_dangerous_command(tool_input.get("command", "")):
+        if rules.is_session_allowed(f"run_shell:{content}"):
+            return {"action": "allow", "reason": "Session whitelist"}
+        # dontAsk 模式：需确认的直接拒绝（不弹对话框）
+        if mode == "dontAsk":
+            return {"action": "deny", "reason": f"Dangerous command auto-denied (dontAsk): {content}"}
+        return {"action": "confirm", "reason": f"Dangerous command: {content}"}
+
+    # 3b. Memory 目录白名单
+    file_path = tool_input.get("file_path", "")
+    if file_path and tool_name in EDIT_TOOLS:
+        from bootstrap import state as _state
+        if _state.memory and _state.memory.is_memory_path(file_path):
+            return {"action": "allow", "reason": "Memory directory (whitelisted)"}
+
+    # 3c. 危险路径保护（bypass-immune）
+    if file_path and tool_name in EDIT_TOOLS and is_dangerous_path(file_path):
+        if mode == "dontAsk":
+            return {"action": "deny", "reason": f"Dangerous path auto-denied (dontAsk): {file_path}"}
+        return {"action": "confirm", "reason": f"Dangerous path: {file_path}"}
+
+    # 3d. 工作目录外路径保护
+    if file_path and tool_name in EDIT_TOOLS and is_outside_workdir(file_path):
+        if mode == "dontAsk":
+            return {"action": "deny", "reason": f"Outside workdir auto-denied (dontAsk): {file_path}"}
+        return {"action": "confirm", "reason": f"Outside working directory: {file_path}"}
+
+    # ═══ Layer 4: 模式决策 ═══
+
+    # 4a. bypassPermissions 模式
+    if mode == "bypassPermissions":
+        return {"action": "allow", "reason": "Bypass mode"}
+
+    # 4b. acceptEdits 模式：编辑工具自动放行
     if mode == "acceptEdits" and tool_name in EDIT_TOOLS:
         return {"action": "allow", "reason": "acceptEdits mode"}
 
-    # 3e. allow 规则
+    # 4c. allow 规则
     allow_match = rules.match_rule(rules.allow_rules, tool_name, content)
     if allow_match:
         return {"action": "allow", "reason": f"Allow rule: {allow_match}"}
 
-    # 3f. 会话白名单
+    # 4d. 会话白名单
     session_key = f"{tool_name}:{content}" if content else tool_name
     if rules.is_session_allowed(session_key):
         return {"action": "allow", "reason": "Session whitelist"}
 
-    # 3g. 安全工具（agent, compress 等）直接放行
+    # 4e. 安全工具直接放行
     if tool_name in {"agent", "TodoWrite", "task_create", "task_get",
                       "task_update", "task_list"}:
         return {"action": "allow", "reason": "Safe tool"}
 
-    # 3h. dontAsk 模式：需确认的直接拒绝
+    # 4f. dontAsk 模式：需确认的直接拒绝
     if mode == "dontAsk":
         return {"action": "deny", "reason": f"Auto-denied in dontAsk mode: {tool_name}"}
 
