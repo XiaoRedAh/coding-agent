@@ -248,50 +248,31 @@ pytest tests/integration/ -v -s
 | `tests/unit/test_definitions.py` | Agent 类型定义 |
 | `tests/unit/test_task_queue.py` | 异步任务队列 |
 | `tests/unit/test_edit_tool.py` | 文件编辑（引号容错、唯一匹配、diff） |
+| `tests/unit/test_llm_adapter.py` | LLM 适配层（Anthropic/OpenAI 格式转换） |
 | `tests/component/test_agent_loop.py` | Agent Loop（Mock LLM 的流程测试） |
+| `tests/integration/test_real_llm.py` | 真实 LLM 集成（连通性/Tool Calling/多轮对话） |
 
 ### 模块评估
 
-权限控制模块的系统化评估（不调 LLM，$0）：
+7 个模块的系统化评估（6 个免费 + 1 个需 LLM）：
 
 ```bash
-# 方式 1: 独立运行，输出评估报告
-python eval/eval_permissions.py
+# 运行所有免费评估
+python eval/eval_permissions.py   # 权限控制 (198 用例)
+python eval/eval_tools.py         # 工具实现 (~30 用例)
+python eval/eval_compact.py       # 上下文压缩 (~20 用例)
+python eval/eval_skills.py        # Skills 系统 (~15 用例)
+python eval/eval_memory.py        # Memory 系统 (~12 用例)
+python eval/eval_mcp.py           # MCP 集成 (~10 用例)
 
-# 方式 2: 通过 pytest 运行（含阈值断言）
-pytest eval/eval_permissions.py -v
+# 需 LLM 的评估（需要 API Key）
+python eval/eval_subagent.py      # 子 Agent (~8 用例, ~$0.05)
+
+# 通过 pytest 运行全部（含阈值断言）
+pytest eval/ -v
 ```
 
-输出示例：
-
-```
-======================================================================
-  权限控制模块评估报告
-======================================================================
-
-✅ 危险命令拦截率 (Recall): 21/21 (100.0%)
-✅ 安全命令误报率 (1 - FPR): 28/28 (100.0%)
-✅ 危险路径拦截率: 10/10 (100.0%)
-✅ 安全路径放行率: 7/7 (100.0%)
-✅ 规则+模式决策准确率: 20/20 (100.0%)
-✅ 模式矩阵一致性: 20/20 (100.0%)
-
-----------------------------------------------------------------------
-  总计: 106/106 (100.0%)
-  API 调用: 0 次  |  费用: $0
-----------------------------------------------------------------------
-```
-
-评估维度说明：
-
-| 维度 | 用例数 | 达标阈值 | 说明 |
-|------|--------|---------|------|
-| 危险命令拦截率 | 21 | ≥95% | 21 种危险命令模式（rm -rf/sudo/git force push/curl\|sh等） |
-| 安全命令放行率 | 28 | ≥95% | 28 种安全命令（ls/git status/npm test/curl GET等） |
-| 危险路径拦截率 | 10 | =100% | .git/.ssh/.env/.bashrc 等 bypass-immune 路径 |
-| 安全路径放行率 | 7 | =100% | src/*.py/README.md 等普通路径 |
-| 规则+模式决策准确率 | 20 | =100% | deny>allow 优先级/5种模式/bypass-immune/safe tools |
-| 模式矩阵一致性 | 20 | =100% | 同一操作在 5 种模式下的预期行为一致性 |
+详见 `项目评估体系详解.md`。
 
 ---
 

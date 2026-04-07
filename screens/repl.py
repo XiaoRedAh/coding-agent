@@ -55,10 +55,5 @@ def run_repl():
         history.append(msg)
         tracker.track_new_message(msg)
         tracker, breaker = agent_loop(history, tracker, breaker)
-
-        response_content = history[-1]["content"]
-        if isinstance(response_content, list):
-            for block in response_content:
-                if hasattr(block, "text"):
-                    print(block.text)
+        # 文本已在 agent_loop 中流式打印，此处只需空行分隔
         print()

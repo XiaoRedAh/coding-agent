@@ -46,7 +46,7 @@ def handle(pattern: str, path: str = None, include: str = None) -> str:
     """搜索文件内容"""
     try:
         search_path = path or "."
-        args = ["grep", "--line-number", "--color=never", "-r"]
+        args = ["grep", "--line-number", "--color=never", "-r", "-E"]  # -E for extended regex
         if include:
             args.append(f"--include={include}")
         args.append(pattern)

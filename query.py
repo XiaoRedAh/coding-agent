@@ -100,8 +100,17 @@ def agent_loop(
             messages.append(msg)
             tracker.track_new_message(msg)
 
-        # === LLM 调用 ===
-        response = state.llm.chat(system_prompt, messages, tool_defs)
+        # === LLM 调用（流式输出） ===
+        def _on_text(delta):
+            print(delta, end="", flush=True)
+
+        response = state.llm.chat(
+            system_prompt, messages, tool_defs,
+            stream=True, on_text=_on_text,
+        )
+        # 流式文本已逐字打印，补一个换行
+        if response.stop_reason != "tool_use":
+            print()  # 最终回答打印完换行
         messages.append({"role": "assistant", "content": response.content})
         tracker.update_from_response(response)
 

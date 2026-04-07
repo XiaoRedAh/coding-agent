@@ -64,6 +64,8 @@ class LLMAdapter:
         messages: list,
         tools: list = None,
         max_tokens: int = 8000,
+        stream: bool = False,
+        on_text: callable = None,
     ) -> LLMResponse:
         """
         统一的 LLM 调用。
@@ -73,9 +75,15 @@ class LLMAdapter:
             messages: 对话消息列表
             tools: 工具定义列表（Anthropic 格式）
             max_tokens: 最大输出 token
+            stream: 是否流式输出（逐字打印）
+            on_text: 流式回调函数 (text_delta: str) -> None
         Returns:
-            LLMResponse（统一格式）
+            LLMResponse（统一格式，流式完成后返回完整响应）
         """
+        if stream:
+            if self.provider == "openai":
+                return self._stream_openai(system, messages, tools, max_tokens, on_text)
+            return self._stream_anthropic(system, messages, tools, max_tokens, on_text)
         if self.provider == "openai":
             return self._call_openai(system, messages, tools, max_tokens)
         return self._call_anthropic(system, messages, tools, max_tokens)
@@ -95,6 +103,27 @@ class LLMAdapter:
             kwargs["tools"] = tools
 
         resp = self.client.messages.create(**kwargs)
+        return LLMResponse(
+            content=resp.content,
+            stop_reason=resp.stop_reason,
+            input_tokens=resp.usage.input_tokens,
+            output_tokens=resp.usage.output_tokens,
+            _raw=resp,
+        )
+
+    def _stream_anthropic(self, system, messages, tools, max_tokens, on_text) -> LLMResponse:
+        """Anthropic 流式调用：逐字输出文本，完成后返回完整响应。"""
+        kwargs = dict(model=self.model, system=system, messages=messages, max_tokens=max_tokens)
+        if tools:
+            kwargs["tools"] = tools
+
+        with self.client.messages.stream(**kwargs) as stream:
+            for event in stream:
+                if on_text and hasattr(event, "type"):
+                    if event.type == "content_block_delta" and hasattr(event.delta, "text"):
+                        on_text(event.delta.text)
+            resp = stream.get_final_message()
+
         return LLMResponse(
             content=resp.content,
             stop_reason=resp.stop_reason,
@@ -146,6 +175,90 @@ class LLMAdapter:
             input_tokens=getattr(resp.usage, "prompt_tokens", 0),
             output_tokens=getattr(resp.usage, "completion_tokens", 0),
             _raw=resp,
+        )
+
+    def _stream_openai(self, system, messages, tools, max_tokens, on_text) -> LLMResponse:
+        """OpenAI 流式调用：逐字输出文本，收集完整响应。"""
+        from types import SimpleNamespace
+        import json as _json
+
+        sys_text = self._flatten_system(system)
+        oai_messages = [{"role": "system", "content": sys_text}]
+        for msg in messages:
+            converted = self._convert_message(msg)
+            if isinstance(converted, list):
+                oai_messages.extend(converted)
+            else:
+                oai_messages.append(converted)
+
+        oai_tools = [self._convert_tool_def(t) for t in tools] if tools else None
+        kwargs = dict(model=self.model, messages=oai_messages, max_tokens=max_tokens, stream=True)
+        if oai_tools:
+            kwargs["tools"] = oai_tools
+
+        # 收集流式数据
+        collected_text = []
+        collected_tool_calls = {}  # index → {id, name, arguments}
+        finish_reason = None
+        input_tokens = 0
+        output_tokens = 0
+
+        stream = self.client.chat.completions.create(**kwargs)
+        for chunk in stream:
+            if not chunk.choices:
+                # usage chunk (some providers send usage in final chunk)
+                if hasattr(chunk, "usage") and chunk.usage:
+                    input_tokens = getattr(chunk.usage, "prompt_tokens", 0)
+                    output_tokens = getattr(chunk.usage, "completion_tokens", 0)
+                continue
+            delta = chunk.choices[0].delta
+            if chunk.choices[0].finish_reason:
+                finish_reason = chunk.choices[0].finish_reason
+
+            # 文本 delta
+            if delta and delta.content:
+                collected_text.append(delta.content)
+                if on_text:
+                    on_text(delta.content)
+
+            # 工具调用 delta（逐步构建参数）
+            if delta and delta.tool_calls:
+                for tc_delta in delta.tool_calls:
+                    idx = tc_delta.index
+                    if idx not in collected_tool_calls:
+                        collected_tool_calls[idx] = {
+                            "id": tc_delta.id or "",
+                            "name": getattr(tc_delta.function, "name", "") or "",
+                            "arguments": "",
+                        }
+                    else:
+                        if tc_delta.id:
+                            collected_tool_calls[idx]["id"] = tc_delta.id
+                        if tc_delta.function and tc_delta.function.name:
+                            collected_tool_calls[idx]["name"] = tc_delta.function.name
+                    if tc_delta.function and tc_delta.function.arguments:
+                        collected_tool_calls[idx]["arguments"] += tc_delta.function.arguments
+
+        # 组装最终 content blocks
+        blocks = []
+        full_text = "".join(collected_text)
+        if full_text:
+            blocks.append(SimpleNamespace(type="text", text=full_text))
+        for idx in sorted(collected_tool_calls.keys()):
+            tc = collected_tool_calls[idx]
+            try:
+                args = _json.loads(tc["arguments"])
+            except (_json.JSONDecodeError, TypeError):
+                args = {}
+            blocks.append(SimpleNamespace(type="tool_use", id=tc["id"], name=tc["name"], input=args))
+
+        if not blocks:
+            blocks.append(SimpleNamespace(type="text", text=""))
+
+        stop = "tool_use" if finish_reason == "tool_calls" else "end_turn"
+        return LLMResponse(
+            content=blocks, stop_reason=stop,
+            input_tokens=input_tokens, output_tokens=output_tokens,
         )
 
     @staticmethod
