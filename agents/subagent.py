@@ -14,7 +14,6 @@ agents/subagent.py - SubAgent 模式（同步 + 异步）
 import threading
 import uuid
 
-from bootstrap.state import client, MODEL
 from bootstrap import state
 from agents.definitions import get_agent_config, get_filtered_tools
 from utils.truncate import truncate_result
@@ -30,13 +29,7 @@ def _run_agent_loop(
     """子 Agent 的通用循环：LLM 调用 → 工具执行 → 返回最终文本。"""
     resp = None
     for _ in range(max_turns):
-        resp = client.messages.create(
-            model=MODEL,
-            system=system_prompt,
-            messages=messages,
-            tools=tool_defs,
-            max_tokens=8000,
-        )
+        resp = state.llm.chat(system_prompt, messages, tool_defs)
         messages.append({"role": "assistant", "content": resp.content})
         if resp.stop_reason != "tool_use":
             break

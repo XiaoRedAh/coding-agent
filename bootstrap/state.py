@@ -12,10 +12,12 @@ import os
 from pathlib import Path
 
 from dotenv import load_dotenv
-from anthropic import Anthropic
 
-# 加载 .env 环境变量
-load_dotenv(override=True)
+# 加载 .env 环境变量（优先 .env，fallback 到 .env.example）
+from pathlib import Path as _P
+_root = _P(__file__).parent.parent
+if not load_dotenv(_root / ".env", override=True):
+    load_dotenv(_root / ".env.example", override=True)
 
 # 自定义 base_url 时移除可能冲突的 auth token
 if os.getenv("ANTHROPIC_BASE_URL"):
@@ -23,18 +25,19 @@ if os.getenv("ANTHROPIC_BASE_URL"):
 
 # === 路径常量 ===
 WORKDIR = Path.cwd()
-PROJECT_DIR = WORKDIR / ".xiaoagent"          # 项目配置根目录
+PROJECT_DIR = WORKDIR / ".xiaoagent"
 TEAM_DIR = PROJECT_DIR / "team"
 INBOX_DIR = TEAM_DIR / "inbox"
 TASKS_DIR = PROJECT_DIR / "tasks"
 SKILLS_DIR = WORKDIR / "skills"
 TRANSCRIPT_DIR = PROJECT_DIR / "transcripts"
-SETTINGS_PATH = PROJECT_DIR / "settings.json"  # 权限规则等配置
-MEMORY_DIR = PROJECT_DIR / "memory"            # 记忆文件目录
+SETTINGS_PATH = PROJECT_DIR / "settings.json"
+MEMORY_DIR = PROJECT_DIR / "memory"
 
-# === API 客户端与模型 ===
-client = Anthropic(base_url=os.getenv("ANTHROPIC_BASE_URL"))
-MODEL = os.environ["MODEL_ID"]
+# === LLM 客户端（延迟初始化，在 main.py 中赋值） ===
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "anthropic")
+MODEL = os.environ.get("MODEL_ID", "")
+llm = None  # LLMAdapter 实例，在 main.py 初始化
 
 # === 上下文窗口与压缩阈值 ===
 MODEL_CONTEXT_WINDOW = int(os.getenv("MODEL_CONTEXT_WINDOW", "200000"))

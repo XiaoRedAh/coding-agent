@@ -14,7 +14,7 @@ query.py - 核心查询循环
 import json
 
 from bootstrap import state
-from bootstrap.state import client, MODEL, WARNING_THRESHOLD
+from bootstrap.state import WARNING_THRESHOLD
 from services.compact import (
     TokenTracker, CircuitBreaker,
     run_compression_pipeline, check_and_compact,
@@ -101,13 +101,7 @@ def agent_loop(
             tracker.track_new_message(msg)
 
         # === LLM 调用 ===
-        response = client.messages.create(
-            model=MODEL,
-            system=system_prompt,
-            messages=messages,
-            tools=tool_defs,
-            max_tokens=8000,
-        )
+        response = state.llm.chat(system_prompt, messages, tool_defs)
         messages.append({"role": "assistant", "content": response.content})
         tracker.update_from_response(response)
 

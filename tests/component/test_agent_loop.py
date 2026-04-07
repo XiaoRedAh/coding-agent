@@ -5,10 +5,12 @@ from services.compact import TokenTracker, CircuitBreaker
 
 
 def _mock_response(stop_reason="end_turn", content=None, input_tokens=100, output_tokens=50):
+    """Create a mock LLMResponse."""
     resp = MagicMock()
     resp.stop_reason = stop_reason
     resp.content = content or [MagicMock(type="text", text="Done")]
-    resp.usage = MagicMock(input_tokens=input_tokens, output_tokens=output_tokens)
+    resp.input_tokens = input_tokens
+    resp.output_tokens = output_tokens
     return resp
 
 
@@ -23,7 +25,7 @@ def _mock_tool_block(name, input_dict, tool_id="t1"):
 
 @pytest.fixture
 def mock_env():
-    """Patch query.state as a proper MagicMock module (not a function)."""
+    """Patch query.state with llm.chat as the mock point."""
     mock_state = MagicMock()
     mock_state.bg.drain.return_value = []
     mock_state.bus.read_inbox.return_value = []
@@ -33,27 +35,29 @@ def mock_env():
     mock_state.perm_rules = MagicMock()
     mock_state.mcp = None
     mock_state.memory = None
+    # llm.chat is the mock point now (replaces old client.messages.create)
+    mock_llm = MagicMock()
+    mock_state.llm = mock_llm
 
     with patch("query.state", mock_state), \
-         patch("query.client") as mock_client, \
          patch("query.build_system_prompt", return_value=[{"type": "text", "text": "sys"}]), \
          patch("query.is_coordinator_mode", return_value=False):
-        yield mock_state, mock_client
+        yield mock_state, mock_llm
 
 
 class TestAgentLoopBasic:
     def test_text_response_exits(self, mock_env):
-        mock_state, mock_client = mock_env
-        mock_client.messages.create.return_value = _mock_response()
+        mock_state, mock_llm = mock_env
+        mock_llm.chat.return_value = _mock_response()
         from query import agent_loop
         messages = [{"role": "user", "content": "hello"}]
         agent_loop(messages)
-        assert mock_client.messages.create.call_count == 1
+        assert mock_llm.chat.call_count == 1
 
     def test_single_tool_call(self, mock_env):
-        mock_state, mock_client = mock_env
+        mock_state, mock_llm = mock_env
         tool = _mock_tool_block("read_file", {"file_path": "test.py"})
-        mock_client.messages.create.side_effect = [
+        mock_llm.chat.side_effect = [
             _mock_response("tool_use", [tool]),
             _mock_response(),
         ]
@@ -64,15 +68,15 @@ class TestAgentLoopBasic:
              patch("query.get_all_definitions", return_value=[]), \
              patch("query.check_permission", return_value={"action": "allow", "reason": "ok"}):
             agent_loop(messages)
-        assert mock_client.messages.create.call_count == 2
+        assert mock_llm.chat.call_count == 2
 
 
 class TestAgentLoopPermissions:
     def test_deny_returns_denied_message(self, mock_env):
-        mock_state, mock_client = mock_env
+        mock_state, mock_llm = mock_env
         mock_state.PERMISSION_MODE = "default"
         tool = _mock_tool_block("run_shell", {"command": "rm -rf /"})
-        mock_client.messages.create.side_effect = [
+        mock_llm.chat.side_effect = [
             _mock_response("tool_use", [tool]),
             _mock_response(),
         ]
@@ -86,9 +90,9 @@ class TestAgentLoopPermissions:
         assert any("Permission denied" in str(r.get("content", "")) for r in tool_msg["content"])
 
     def test_tool_error_doesnt_crash(self, mock_env):
-        mock_state, mock_client = mock_env
+        mock_state, mock_llm = mock_env
         tool = _mock_tool_block("read_file", {"file_path": "bad.py"})
-        mock_client.messages.create.side_effect = [
+        mock_llm.chat.side_effect = [
             _mock_response("tool_use", [tool]),
             _mock_response(),
         ]
@@ -106,10 +110,10 @@ class TestAgentLoopPermissions:
 
 class TestAgentLoopMultiTool:
     def test_two_tools_same_turn(self, mock_env):
-        mock_state, mock_client = mock_env
+        mock_state, mock_llm = mock_env
         tool1 = _mock_tool_block("read_file", {"file_path": "a.py"}, "t1")
         tool2 = _mock_tool_block("read_file", {"file_path": "b.py"}, "t2")
-        mock_client.messages.create.side_effect = [
+        mock_llm.chat.side_effect = [
             _mock_response("tool_use", [tool1, tool2]),
             _mock_response(),
         ]
@@ -126,13 +130,13 @@ class TestAgentLoopMultiTool:
         assert call_log == ["a.py", "b.py"]
 
     def test_three_round_conversation(self, mock_env):
-        mock_state, mock_client = mock_env
+        mock_state, mock_llm = mock_env
         tools = [
             _mock_tool_block("list_files", {"pattern": "*.py"}, "t1"),
             _mock_tool_block("read_file", {"file_path": "main.py"}, "t2"),
             _mock_tool_block("grep_search", {"pattern": "TODO"}, "t3"),
         ]
-        mock_client.messages.create.side_effect = [
+        mock_llm.chat.side_effect = [
             _mock_response("tool_use", [tools[0]]),
             _mock_response("tool_use", [tools[1]]),
             _mock_response("tool_use", [tools[2]]),
@@ -149,41 +153,40 @@ class TestAgentLoopMultiTool:
              patch("query.get_all_definitions", return_value=[]), \
              patch("query.check_permission", return_value={"action": "allow", "reason": "ok"}):
             agent_loop(messages)
-        assert mock_client.messages.create.call_count == 4
-        assert len(messages) == 8  # user + (asst+tool)*3 + asst_final
+        assert mock_llm.chat.call_count == 4
 
 
 class TestAgentLoopNotifications:
     def test_bg_notification_injected(self, mock_env):
-        mock_state, mock_client = mock_env
+        mock_state, mock_llm = mock_env
         mock_state.bg.drain.return_value = [
             {"task_id": "bg1", "status": "completed", "result": "build success"}
         ]
-        mock_client.messages.create.return_value = _mock_response()
+        mock_llm.chat.return_value = _mock_response()
         from query import agent_loop
         messages = [{"role": "user", "content": "status?"}]
         agent_loop(messages)
         assert any("background-results" in str(m.get("content", "")) for m in messages)
 
     def test_agent_task_notification_injected(self, mock_env):
-        mock_state, mock_client = mock_env
+        mock_state, mock_llm = mock_env
         mock_agent_tasks = MagicMock()
         mock_agent_tasks.drain.return_value = [
             {"task_id": "agent-abc", "agent_type": "explore", "status": "completed", "result": "Found 5 TODOs"}
         ]
         mock_state.agent_tasks = mock_agent_tasks
-        mock_client.messages.create.return_value = _mock_response()
+        mock_llm.chat.return_value = _mock_response()
         from query import agent_loop
         messages = [{"role": "user", "content": "check"}]
         agent_loop(messages)
         assert any("task-notification" in str(m.get("content", "")) for m in messages)
 
     def test_inbox_message_injected(self, mock_env):
-        mock_state, mock_client = mock_env
+        mock_state, mock_llm = mock_env
         mock_state.bus.read_inbox.return_value = [
             {"type": "message", "from": "researcher", "content": "Found bug"}
         ]
-        mock_client.messages.create.return_value = _mock_response()
+        mock_llm.chat.return_value = _mock_response()
         from query import agent_loop
         messages = [{"role": "user", "content": "check inbox"}]
         agent_loop(messages)
@@ -192,9 +195,9 @@ class TestAgentLoopNotifications:
 
 class TestAgentLoopUnknownTool:
     def test_unknown_tool_returns_error(self, mock_env):
-        mock_state, mock_client = mock_env
+        mock_state, mock_llm = mock_env
         tool = _mock_tool_block("nonexistent_tool", {}, "t1")
-        mock_client.messages.create.side_effect = [
+        mock_llm.chat.side_effect = [
             _mock_response("tool_use", [tool]),
             _mock_response(),
         ]

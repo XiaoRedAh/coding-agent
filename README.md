@@ -16,23 +16,34 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-编辑 `.env` 文件：
+编辑 `.env` 文件（三种方案选一）：
 
+**方案 A: Claude（Anthropic 官方，效果最好）**
 ```bash
-# 方案 A: 使用 Claude（Anthropic 官方）
+LLM_PROVIDER=anthropic
 ANTHROPIC_API_KEY=sk-ant-xxx
 MODEL_ID=claude-sonnet-4-20250514
-
-# 方案 B: 使用 DeepSeek（通过 OpenRouter，更便宜）
-ANTHROPIC_BASE_URL=https://openrouter.ai/api/v1
-ANTHROPIC_API_KEY=sk-or-v1-xxx
-MODEL_ID=deepseek/deepseek-chat
-
-# 方案 C: 使用其他模型（通过任何 Anthropic API 兼容代理）
-ANTHROPIC_BASE_URL=https://your-proxy.example.com/v1
-ANTHROPIC_API_KEY=your-key
-MODEL_ID=your-model-id
 ```
+
+**方案 B: Qwen 免费模型（通过 OpenRouter，零成本入门）** ⭐ 推荐新手
+```bash
+LLM_PROVIDER=openai
+OPENAI_BASE_URL=https://openrouter.ai/api/v1
+OPENAI_API_KEY=sk-or-v1-你的openrouter-key
+MODEL_ID=qwen/qwen3.6-plus:free
+MODEL_CONTEXT_WINDOW=131072
+```
+
+**方案 C: DeepSeek（通过 OpenRouter，高性价比）**
+```bash
+LLM_PROVIDER=openai
+OPENAI_BASE_URL=https://openrouter.ai/api/v1
+OPENAI_API_KEY=sk-or-v1-你的openrouter-key
+MODEL_ID=deepseek/deepseek-chat
+MODEL_CONTEXT_WINDOW=128000
+```
+
+> **注意**：`LLM_PROVIDER=openai` 时使用 OpenAI SDK 格式，可连接 OpenRouter/DeepSeek/Qwen 等所有 OpenAI 兼容 API。`LLM_PROVIDER=anthropic`（默认）使用 Anthropic SDK 格式。
 
 ### 3. 运行
 
@@ -167,6 +178,32 @@ LLM: run_shell(command="git status")  ← 按 Skill 指导执行
 
 ---
 
+---
+
+## LLM 适配（多模型切换）
+
+项目支持 **Anthropic SDK** 和 **OpenAI SDK** 两种格式，通过 `LLM_PROVIDER` 环境变量切换。
+
+### 使用 Qwen 免费模型（通过 OpenRouter）
+
+```bash
+# 1. 注册 https://openrouter.ai 获取 API Key
+# 2. 安装 openai 包: pip install openai
+# 3. .env 配置:
+LLM_PROVIDER=openai
+OPENAI_BASE_URL=https://openrouter.ai/api/v1
+OPENAI_API_KEY=sk-or-v1-你的key
+MODEL_ID=qwen/qwen3.6-plus:free
+MODEL_CONTEXT_WINDOW=131072
+# 4. python main.py → 输出 [LLM] provider=openai, model=qwen/qwen3.6-plus:free
+```
+
+### 适配原理
+
+`services/llm.py` 的 `LLMAdapter` 自动转换格式差异（system prompt/tools/tool_use/响应格式）。切换模型只需改 `.env`，不需要改代码。
+
+---
+
 ## 测试
 
 ### 安装测试依赖
@@ -188,10 +225,16 @@ pytest tests/unit/ -v
 pytest tests/component/ -v
 ```
 
-### 运行全部测试
+### 运行全部测试（单元+组件）
 
 ```bash
 pytest tests/ -v
+```
+
+### 运行集成测试（需要 API Key）
+
+```bash
+pytest tests/integration/ -v -s
 ```
 
 ### 测试覆盖的模块
@@ -213,10 +256,10 @@ pytest tests/ -v
 
 ```bash
 # 方式 1: 独立运行，输出评估报告
-python tests/eval/eval_permissions.py
+python eval/eval_permissions.py
 
 # 方式 2: 通过 pytest 运行（含阈值断言）
-pytest tests/eval/eval_permissions.py -v
+pytest eval/eval_permissions.py -v
 ```
 
 输出示例：

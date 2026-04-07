@@ -12,11 +12,20 @@ class TestTokenTracker:
         assert t.last_input_tokens == 0
         assert t.estimate_current_tokens() == 0
 
+    def _make_response(self, input_tokens=5000, output_tokens=1000):
+        """Create a mock LLMResponse (has direct input_tokens/output_tokens attrs)."""
+        from dataclasses import dataclass
+        @dataclass
+        class FakeResp:
+            input_tokens: int
+            output_tokens: int
+            content: list = None
+            stop_reason: str = "end_turn"
+        return FakeResp(input_tokens=input_tokens, output_tokens=output_tokens)
+
     def test_update_from_response(self):
         t = TokenTracker()
-        resp = MagicMock()
-        resp.usage.input_tokens = 5000
-        resp.usage.output_tokens = 1000
+        resp = self._make_response(5000, 1000)
         t.update_from_response(resp)
         assert t.last_input_tokens == 5000
         assert t.total_input_tokens == 5000
@@ -24,29 +33,20 @@ class TestTokenTracker:
 
     def test_track_new_message(self):
         t = TokenTracker()
-        resp = MagicMock()
-        resp.usage.input_tokens = 3000
-        resp.usage.output_tokens = 500
-        t.update_from_response(resp)
+        t.update_from_response(self._make_response(3000, 500))
         t.track_new_message({"role": "user", "content": "x" * 300})
         est = t.estimate_current_tokens()
-        assert est > 3000  # anchor + increment
+        assert est > 3000
 
     def test_get_utilization(self):
         t = TokenTracker()
-        resp = MagicMock()
-        resp.usage.input_tokens = 90000
-        resp.usage.output_tokens = 0
-        t.update_from_response(resp)
+        t.update_from_response(self._make_response(90000, 0))
         util = t.get_utilization()
-        assert 0.4 < util < 0.6  # ~90K / 180K
+        assert 0.4 < util < 0.6
 
     def test_reset_after_compact(self):
         t = TokenTracker()
-        resp = MagicMock()
-        resp.usage.input_tokens = 50000
-        resp.usage.output_tokens = 1000
-        t.update_from_response(resp)
+        t.update_from_response(self._make_response(50000, 1000))
         t.reset_after_compact()
         assert t.last_input_tokens == 0
         assert t.estimate_current_tokens() == 0

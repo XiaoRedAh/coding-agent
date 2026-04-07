@@ -21,9 +21,9 @@ import json
 import threading
 import time
 
+from bootstrap import state as _root_state
 from bootstrap.state import (
     WORKDIR, TEAM_DIR, TASKS_DIR,
-    client, MODEL,
     POLL_INTERVAL, IDLE_TIMEOUT,
 )
 from agents.definitions import get_filtered_tools, GENERAL_TOOLS
@@ -205,10 +205,7 @@ class TeammateManager:
                     messages.append({"role": "user", "content": json.dumps(msg)})
 
                 try:
-                    response = client.messages.create(
-                        model=MODEL, system=sys_prompt,
-                        messages=messages, tools=tool_defs, max_tokens=8000,
-                    )
+                    response = _root_state.llm.chat(sys_prompt, messages, tool_defs)
                 except Exception:
                     self._set_status(name, "shutdown")
                     return

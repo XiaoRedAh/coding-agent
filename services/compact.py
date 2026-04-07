@@ -18,8 +18,9 @@ import json
 import re
 import time
 
+from bootstrap import state as _state
 from bootstrap.state import (
-    TRANSCRIPT_DIR, client, MODEL, EFFECTIVE_WINDOW,
+    TRANSCRIPT_DIR, EFFECTIVE_WINDOW,
     BUDGET_THRESHOLD, BUDGET_TIGHT_THRESHOLD, SNIP_THRESHOLD,
     AUTOCOMPACT_THRESHOLD, BUDGET_NORMAL, BUDGET_TIGHT,
     SNIP_KEEP_RECENT, MICROCOMPACT_IDLE_SECONDS,
@@ -107,11 +108,21 @@ class TokenTracker:
         self._new_chars_since_anchor = 0  # 锚点之后新增的字符数
 
     def update_from_response(self, response):
-        """从 API 响应中更新 token 统计（锚点更新）"""
-        usage = response.usage
-        self.last_input_tokens = usage.input_tokens
-        self.total_input_tokens += usage.input_tokens
-        self.total_output_tokens += usage.output_tokens
+        """从 API 响应中更新 token 统计（锚点更新）。
+
+        兼容 LLMResponse（直接属性）和原始 Anthropic 响应（response.usage）。
+        """
+        if hasattr(response, "input_tokens"):
+            # LLMResponse 格式
+            inp = response.input_tokens
+            out = response.output_tokens
+        else:
+            # 原始 Anthropic SDK 响应
+            inp = response.usage.input_tokens
+            out = response.usage.output_tokens
+        self.last_input_tokens = inp
+        self.total_input_tokens += inp
+        self.total_output_tokens += out
         self.last_api_call_time = time.time()
         self.messages_since_anchor = 0
         self._new_chars_since_anchor = 0
@@ -365,8 +376,7 @@ def auto_compact(messages: list, tracker: TokenTracker) -> list:
     if len(conv_text) > 80000:
         conv_text = conv_text[:40000] + "\n...[middle truncated]...\n" + conv_text[-40000:]
 
-    resp = client.messages.create(
-        model=MODEL,
+    resp = _state.llm.chat(
         system="You are a conversation summarizer. Be concise but preserve important details.",
         messages=[{
             "role": "user",

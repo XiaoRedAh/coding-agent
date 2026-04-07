@@ -26,6 +26,7 @@ from skills.loader import SkillLoader
 from services.permissions import PermissionRules
 from services.mcp import McpManager
 from services.memory import MemoryManager
+from services.llm import LLMAdapter
 from agents.task_queue import AgentTaskQueue
 from screens.repl import run_repl
 
@@ -42,6 +43,10 @@ def init():
     5. MessageBus - 消息总线
     6. TeammateManager - 团队管理（依赖 bus 和 task_mgr）
     """
+    # LLM 适配器（支持 Anthropic 和 OpenAI 格式）
+    state.llm = LLMAdapter.from_env()
+    print(f"[LLM] provider={state.llm.provider}, model={state.llm.model}")
+
     state.todo = TodoManager()
     # 多层技能来源（对齐 cc 的优先级：项目级 > 配置级 > 用户级）
     user_skills_dir = Path.home() / ".xiaoagent" / "skills"
