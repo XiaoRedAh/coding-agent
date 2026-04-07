@@ -2,16 +2,13 @@
 query.py - 核心查询循环
 
 管理单次查询的完整生命周期状态机：
-    压缩管道(L1-L3) → 后台通知 → 收件箱 → LLM 调用 → Token更新
-    → 工具执行 → AutoCompact检查(L5) → 循环/返回
-
-在 Coordinator 模式下，系统提示和工具池被替换为协调者配置，
-主 Agent 变为只能调度 Worker 的协调者。
-
-对应 Claude Code 源码中的 query.ts。
+    压缩管道(L1-L3) → 通知 → LLM 调用（流式+等待动画）→ 权限检查 → 工具执行
 """
 
 import json
+import sys
+import threading
+import time
 
 from bootstrap import state
 from bootstrap.state import WARNING_THRESHOLD
@@ -25,22 +22,89 @@ from agents.coordinator import is_coordinator_mode, get_coordinator_config
 from services.permissions import check_permission
 
 
+# ──────────────────────────────────────────────
+#  等待动画（LLM 响应前的加载指示）
+# ──────────────────────────────────────────────
+
+class _Spinner:
+    """简单的终端加载动画，在后台线程中运行。"""
+    FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+
+    def __init__(self):
+        self._active = False
+        self._thread = None
+
+    def start(self):
+        self._active = True
+        self._thread = threading.Thread(target=self._spin, daemon=True)
+        self._thread.start()
+
+    def stop(self):
+        self._active = False
+        if self._thread:
+            self._thread.join(timeout=1)
+        # 清除 spinner 字符
+        sys.stdout.write("\r\033[K")
+        sys.stdout.flush()
+
+    def _spin(self):
+        i = 0
+        while self._active:
+            frame = self.FRAMES[i % len(self.FRAMES)]
+            sys.stdout.write(f"\r\033[90m{frame} thinking...\033[0m")
+            sys.stdout.flush()
+            time.sleep(0.1)
+            i += 1
+
+
+_spinner = _Spinner()
+
+
+# ──────────────────────────────────────────────
+#  权限确认（展示操作详情）
+# ──────────────────────────────────────────────
+
+def _format_permission_detail(tool_name: str, tool_input: dict) -> str:
+    """生成权限确认时的操作详情描述。"""
+    if tool_name == "run_shell":
+        cmd = tool_input.get("command", "")
+        bg = tool_input.get("run_in_background", False)
+        suffix = " (background)" if bg else ""
+        return f"  \033[93m⚠ Shell command{suffix}:\033[0m {cmd}"
+    if tool_name == "write_file":
+        path = tool_input.get("file_path", "")
+        size = len(tool_input.get("content", ""))
+        return f"  \033[93m⚠ Write file:\033[0m {path} ({size} bytes)"
+    if tool_name == "edit_file":
+        path = tool_input.get("file_path", "")
+        old = tool_input.get("old_string", "")[:50]
+        return f"  \033[93m⚠ Edit file:\033[0m {path} (replace: \"{old}...\")"
+    if tool_name == "agent":
+        atype = tool_input.get("type", "general")
+        desc = tool_input.get("description", "")
+        name = tool_input.get("name", "")
+        if name:
+            return f"  \033[93m⚠ Create teammate:\033[0m {name} (type={atype})"
+        return f"  \033[93m⚠ Launch sub-agent:\033[0m [{atype}] {desc}"
+    # 通用 fallback
+    return f"  \033[93m⚠ {tool_name}:\033[0m {json.dumps(tool_input, ensure_ascii=False)[:120]}"
+
+
+# ──────────────────────────────────────────────
+#  Agent Loop
+# ──────────────────────────────────────────────
+
 def agent_loop(
     messages: list,
     tracker: TokenTracker = None,
     breaker: CircuitBreaker = None,
 ):
-    """
-    主代理循环。
-
-    在 Coordinator 模式下，系统提示和工具池被替换，主 Agent 变为协调者。
-    """
+    """主代理循环（流式输出 + 等待动画 + 权限详情）。"""
     if tracker is None:
         tracker = TokenTracker()
     if breaker is None:
         breaker = CircuitBreaker()
 
-    # === 根据模式选择配置 ===
     all_defs = get_all_definitions()
     all_handlers = get_all_handlers()
 
@@ -50,7 +114,6 @@ def agent_loop(
         allowed = coord_config["allowed_tools"]
         tool_defs = [d for d in all_defs if d["name"] in allowed]
         tool_handlers = {k: v for k, v in all_handlers.items() if k in allowed}
-        print("[coordinator mode active]")
     else:
         system_prompt = build_system_prompt()
         tool_defs = all_defs
@@ -58,29 +121,27 @@ def agent_loop(
 
     rounds_without_todo = 0
     while True:
-        # === L1-L3 压缩管道 ===
         run_compression_pipeline(messages, tracker)
 
         utilization = tracker.get_utilization()
         if utilization >= WARNING_THRESHOLD:
-            print(f"[warning: context at {utilization:.0%}, consider /compact]")
+            print(f"\033[33m[context at {utilization:.0%}]\033[0m")
 
-        # === 后台 Shell 通知 ===
+        # 后台 Shell 通知
         bg_notifs = state.bg.drain()
         if bg_notifs:
-            txt = "\n".join(
-                f"[bg:{n['task_id']}] {n['status']}: {n['result']}" for n in bg_notifs
-            )
+            txt = "\n".join(f"[bg:{n['task_id']}] {n['status']}: {n['result']}" for n in bg_notifs)
             msg = {"role": "user", "content": f"<background-results>\n{txt}\n</background-results>"}
             messages.append(msg)
             tracker.track_new_message(msg)
 
-        # === 异步 Agent 通知（独立于 Shell 后台） ===
+        # 异步 Agent 通知
         if state.agent_tasks:
             agent_notifs = state.agent_tasks.drain()
             if agent_notifs:
                 parts = []
                 for n in agent_notifs:
+                    print(f"\033[35m  ✓ Agent [{n['agent_type']}] {n['status']}\033[0m")
                     parts.append(
                         f"<task-notification>\n"
                         f"  <task-id>{n['task_id']}</task-id>\n"
@@ -93,51 +154,59 @@ def agent_loop(
                 messages.append(msg)
                 tracker.track_new_message(msg)
 
-        # === 收件箱检查 ===
+        # 收件箱
         inbox = state.bus.read_inbox("lead")
         if inbox:
             msg = {"role": "user", "content": f"<inbox>{json.dumps(inbox, indent=2)}</inbox>"}
             messages.append(msg)
             tracker.track_new_message(msg)
 
-        # === LLM 调用（流式输出） ===
+        # === LLM 调用（流式 + spinner） ===
+        first_token_received = False
+
         def _on_text(delta):
+            nonlocal first_token_received
+            if not first_token_received:
+                _spinner.stop()
+                first_token_received = True
             print(delta, end="", flush=True)
 
-        response = state.llm.chat(
-            system_prompt, messages, tool_defs,
-            stream=True, on_text=_on_text,
-        )
-        # 流式文本已逐字打印，补一个换行
+        _spinner.start()
+        try:
+            response = state.llm.chat(
+                system_prompt, messages, tool_defs,
+                stream=True, on_text=_on_text,
+            )
+        finally:
+            _spinner.stop()
+
         if response.stop_reason != "tool_use":
-            print()  # 最终回答打印完换行
+            if first_token_received:
+                print()
         messages.append({"role": "assistant", "content": response.content})
         tracker.update_from_response(response)
 
         if response.stop_reason != "tool_use":
             return tracker, breaker
 
-        # === 工具执行（含权限检查） ===
+        # === 工具执行（含权限检查 + 详情展示） ===
         results = []
         used_todo = False
         perm_mode = state.PERMISSION_MODE
         for block in response.content:
             if block.type == "tool_use":
-                # --- 权限检查 ---
                 perm = check_permission(block.name, block.input, perm_mode, state.perm_rules)
 
                 if perm["action"] == "deny":
                     output = f"Permission denied: {perm['reason']}"
-                    print(f"> {block.name}: [DENIED] {perm['reason']}")
+                    print(f"\033[31m  ✗ {block.name}: DENIED ({perm['reason']})\033[0m")
                 elif perm["action"] == "confirm":
-                    # 交互式确认
-                    print(f"\n  ⚠ {perm['reason']}")
+                    print(_format_permission_detail(block.name, block.input))
                     try:
                         answer = input("  Allow? (y/n): ").strip().lower()
                     except (EOFError, KeyboardInterrupt):
                         answer = "n"
                     if answer.startswith("y"):
-                        # 记住用户授权（会话级白名单）
                         from services.permissions import _get_content_key
                         key = f"{block.name}:{_get_content_key(block.name, block.input)}"
                         state.perm_rules.add_session_allow(key)
@@ -146,19 +215,35 @@ def agent_loop(
                             output = handler(**block.input) if handler else f"Unknown tool: {block.name}"
                         except Exception as e:
                             output = f"Error: {e}"
-                        print(f"> {block.name}:")
-                        print(str(output)[:200])
+                        print(f"\033[32m  > {block.name}\033[0m")
+                        print(f"    {str(output)[:200]}")
                     else:
                         output = "User denied this action."
-                        print(f"> {block.name}: [USER DENIED]")
+                        print(f"\033[31m  ✗ {block.name}: USER DENIED\033[0m")
                 else:  # allow
+                    # SubAgent 特殊展示
+                    if block.name == "agent":
+                        atype = block.input.get("type", "general")
+                        desc = block.input.get("description", "")
+                        name = block.input.get("name", "")
+                        if name:
+                            print(f"\033[35m  ┌─ Teammate [{atype}]: {name}\033[0m")
+                        else:
+                            bg = block.input.get("run_in_background", False)
+                            mode = "async" if bg else "sync"
+                            print(f"\033[35m  ┌─ SubAgent [{atype}] ({mode}): {desc}\033[0m")
+
                     handler = tool_handlers.get(block.name)
                     try:
                         output = handler(**block.input) if handler else f"Unknown tool: {block.name}"
                     except Exception as e:
                         output = f"Error: {e}"
-                    print(f"> {block.name}:")
-                    print(str(output)[:200])
+
+                    if block.name == "agent":
+                        print(f"\033[35m  └─ done\033[0m")
+                    else:
+                        print(f"\033[32m  > {block.name}\033[0m")
+                        print(f"    {str(output)[:200]}")
 
                 results.append({
                     "type": "tool_result",
@@ -168,7 +253,6 @@ def agent_loop(
                 if block.name == "TodoWrite":
                     used_todo = True
 
-        # === 待办提醒 ===
         rounds_without_todo = 0 if used_todo else rounds_without_todo + 1
         if state.todo and state.todo.has_open_items() and rounds_without_todo >= 3:
             results.append({"type": "text", "text": "<reminder>Update your todos.</reminder>"})
@@ -177,7 +261,6 @@ def agent_loop(
         messages.append(tool_msg)
         tracker.track_new_message(tool_msg)
 
-        # === L5: AutoCompact 检查 ===
         compacted = check_and_compact(messages, tracker, breaker)
         if compacted is not None:
             messages[:] = compacted
