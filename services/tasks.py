@@ -16,7 +16,7 @@ class TaskManager:
 
     def __init__(self):
         """初始化任务目录"""
-        TASKS_DIR.mkdir(exist_ok=True)
+        TASKS_DIR.mkdir(parents=True, exist_ok=True)
 
     def _next_id(self) -> int:
         """获取下一个可用的任务 ID"""

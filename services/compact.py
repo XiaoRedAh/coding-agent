@@ -359,7 +359,7 @@ def auto_compact(messages: list, tracker: TokenTracker) -> list:
         return messages  # 太短不值得压缩
 
     # 1. 保存完整转录到文件
-    TRANSCRIPT_DIR.mkdir(exist_ok=True)
+    TRANSCRIPT_DIR.mkdir(parents=True, exist_ok=True)
     path = TRANSCRIPT_DIR / f"transcript_{int(time.time())}.jsonl"
     with open(path, "w", encoding="utf-8") as f:
         for msg in messages:

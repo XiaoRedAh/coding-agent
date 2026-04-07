@@ -73,7 +73,7 @@ class TeammateManager:
     """
 
     def __init__(self, bus, task_mgr):
-        TEAM_DIR.mkdir(exist_ok=True)
+        TEAM_DIR.mkdir(parents=True, exist_ok=True)
         self.bus = bus
         self.task_mgr = task_mgr
         self.config_path = TEAM_DIR / "config.json"
