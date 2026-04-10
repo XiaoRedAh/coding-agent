@@ -14,6 +14,12 @@ import os
 import tempfile
 import subprocess
 
+# readline 让 input() 支持退格键、方向键、输入历史（↑↓）
+try:
+    import readline  # noqa: F401 — 导入即生效，不需要显式调用
+except ImportError:
+    pass  # Windows 上可能没有 readline，但 pyreadline3 可以替代
+
 from bootstrap import state
 from services.compact import TokenTracker, CircuitBreaker, auto_compact
 from query import agent_loop
