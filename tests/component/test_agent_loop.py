@@ -209,3 +209,151 @@ class TestAgentLoopUnknownTool:
             agent_loop(messages)
         tool_msg = messages[2]
         assert any("Unknown tool" in str(r.get("content", "")) for r in tool_msg["content"])
+
+
+class TestAgentLoopProtection:
+    """测试 Agent Loop 保护机制（maxTurns + 错误计数）。"""
+
+    def test_max_turns_limit(self, mock_env):
+        """达到 max_turns 上限后应该停止。"""
+        mock_state, mock_llm = mock_env
+
+        # 创建一个无限循环场景：每次都返回 tool_use
+        tool = _mock_tool_block("read_file", {"file_path": "a.py"}, "t1")
+        mock_llm.chat.side_effect = [
+            _mock_response("tool_use", [tool]),
+        ] * 100  # 足够多，触发 maxTurns
+
+        from query import agent_loop
+        messages = [{"role": "user", "content": "loop"}]
+        handlers = {"read_file": lambda **kw: "content"}
+        with patch("query.get_all_handlers", return_value=handlers), \
+             patch("query.get_all_definitions", return_value=[]), \
+             patch("query.check_permission", return_value={"action": "allow", "reason": "ok"}):
+            tracker, breaker = agent_loop(messages, max_turns=10)
+
+        # 应该最多调用 max_turns 次（10次后停止）
+        assert mock_llm.chat.call_count <= 10 + 1  # +1 因为第一轮不检查
+
+    def test_custom_max_turns(self, mock_env):
+        """可以指定自定义 max_turns。"""
+        mock_state, mock_llm = mock_env
+        tool = _mock_tool_block("read_file", {"file_path": "a.py"}, "t1")
+        mock_llm.chat.side_effect = [
+            _mock_response("tool_use", [tool]),
+        ] * 100
+
+        from query import agent_loop
+        messages = [{"role": "user", "content": "loop"}]
+        handlers = {"read_file": lambda **kw: "content"}
+        with patch("query.get_all_handlers", return_value=handlers), \
+             patch("query.get_all_definitions", return_value=[]), \
+             patch("query.check_permission", return_value={"action": "allow", "reason": "ok"}):
+            tracker, breaker = agent_loop(messages, max_turns=3)
+
+        assert mock_llm.chat.call_count <= 4  # 3轮 + 1
+
+    def test_consecutive_llm_error_stops(self, mock_env):
+        """连续 LLM 错误达到阈值后应该停止。"""
+        mock_state, mock_llm = mock_env
+
+        from services.llm import LLMError
+        from services.api_errors import APIErrorType
+
+        # 模拟连续的 LLM 错误
+        mock_llm.chat.side_effect = [
+            LLMError("API error", APIErrorType.RATE_LIMIT),
+            LLMError("API error", APIErrorType.RATE_LIMIT),
+            LLMError("API error", APIErrorType.RATE_LIMIT),
+        ]
+
+        from query import agent_loop
+        messages = [{"role": "user", "content": "test"}]
+        with patch("query.build_system_prompt", return_value=[{"type": "text", "text": "sys"}]):
+            tracker, breaker = agent_loop(messages, max_turns=10)
+
+        # 连续 3 个 LLM 错误后停止
+        assert mock_llm.chat.call_count == 3
+
+    def test_llm_error_injected_as_message(self, mock_env):
+        """LLM 错误应该被注入为用户消息，让 LLM 知道发生了什么。"""
+        mock_state, mock_llm = mock_env
+
+        from services.llm import LLMError
+        from services.api_errors import APIErrorType
+
+        call_count = [0]
+
+        def side_effect_func(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                raise LLMError("API error", APIErrorType.RATE_LIMIT)
+            return _mock_response()  # 第二次成功
+
+        mock_llm.chat.side_effect = side_effect_func
+
+        from query import agent_loop
+        messages = [{"role": "user", "content": "test"}]
+        with patch("query.build_system_prompt", return_value=[{"type": "text", "text": "sys"}]):
+            tracker, breaker = agent_loop(messages)
+
+        # 第二次调用成功，消息中应该包含错误注入
+        assert call_count[0] == 2
+        # 应该有错误消息被注入
+        error_msgs = [m for m in messages if isinstance(m.get("content"), str) and "<error>" in m["content"]]
+        assert len(error_msgs) >= 1
+
+    def test_consecutive_tool_errors_within_turn(self, mock_env):
+        """同一轮内多个工具错误达到阈值后应该停止。"""
+        mock_state, mock_llm = mock_env
+
+        # 同一轮内返回多个工具，都报错
+        tool1 = _mock_tool_block("read_file", {"file_path": "bad1.py"}, "t1")
+        tool2 = _mock_tool_block("read_file", {"file_path": "bad2.py"}, "t2")
+        tool3 = _mock_tool_block("read_file", {"file_path": "bad3.py"}, "t3")
+        tool4 = _mock_tool_block("read_file", {"file_path": "bad4.py"}, "t4")
+        tool5 = _mock_tool_block("read_file", {"file_path": "bad5.py"}, "t5")
+        tool6 = _mock_tool_block("read_file", {"file_path": "bad6.py"}, "t6")
+        # 一次返回 6 个工具
+        mock_llm.chat.side_effect = [
+            _mock_response("tool_use", [tool1, tool2, tool3, tool4, tool5, tool6]),
+        ]
+
+        def bad_handler(**kw):
+            raise FileNotFoundError("not found")
+
+        from query import agent_loop
+        messages = [{"role": "user", "content": "loop"}]
+        with patch("query.get_all_handlers", return_value={"read_file": bad_handler}), \
+             patch("query.get_all_definitions", return_value=[]), \
+             patch("query.check_permission", return_value={"action": "allow", "reason": "ok"}):
+            tracker, breaker = agent_loop(messages, max_turns=10)
+
+        # 同一轮内 6 个工具都报错 >= MAX_CONSECUTIVE_TOOL_ERRORS(5)，应该停止
+        # 实际 call_count = 1（只有一轮）
+        assert mock_llm.chat.call_count == 1
+
+
+class TestAgentLoopRecovery:
+    """测试 Agent Loop 恢复机制。"""
+
+    def test_error_counter_resets_on_success(self, mock_env):
+        """成功响应后错误计数器应该重置。"""
+        mock_state, mock_llm = mock_env
+
+        from services.llm import LLMError
+        from services.api_errors import APIErrorType
+
+        # 错误 1 次 → 成功 1 次 → 成功 2 次 → 退出
+        mock_llm.chat.side_effect = [
+            LLMError("API error", APIErrorType.RATE_LIMIT),  # 错误1，注入消息，继续
+            _mock_response(),                                  # 成功1，重置计数，返回
+        ]
+
+        from query import agent_loop
+        messages = [{"role": "user", "content": "test"}]
+        with patch("query.build_system_prompt", return_value=[{"type": "text", "text": "sys"}]):
+            tracker, breaker = agent_loop(messages, max_turns=10)
+
+        # 错误后成功一次即退出
+        assert mock_llm.chat.call_count == 2

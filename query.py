@@ -20,6 +20,7 @@ from tools import get_all_definitions, get_all_handlers
 from context import build_system_prompt
 from agents.coordinator import is_coordinator_mode, get_coordinator_config
 from services.permissions import check_permission
+from services.api_errors import LoopConfig, LLMError, APIRetryExhaustedError
 
 
 # ──────────────────────────────────────────────
@@ -43,7 +44,6 @@ class _Spinner:
         self._active = False
         if self._thread:
             self._thread.join(timeout=1)
-        # 清除 spinner 字符
         sys.stdout.write("\r\033[K")
         sys.stdout.flush()
 
@@ -86,7 +86,6 @@ def _format_permission_detail(tool_name: str, tool_input: dict) -> str:
         if name:
             return f"  \033[93m⚠ Create teammate:\033[0m {name} (type={atype})"
         return f"  \033[93m⚠ Launch sub-agent:\033[0m [{atype}] {desc}"
-    # 通用 fallback
     return f"  \033[93m⚠ {tool_name}:\033[0m {json.dumps(tool_input, ensure_ascii=False)[:120]}"
 
 
@@ -98,12 +97,15 @@ def agent_loop(
     messages: list,
     tracker: TokenTracker = None,
     breaker: CircuitBreaker = None,
+    max_turns: int = None,
 ):
-    """主代理循环（流式输出 + 等待动画 + 权限详情）。"""
+    """主代理循环（流式输出 + 等待动画 + 权限详情 + 循环保护）。"""
     if tracker is None:
         tracker = TokenTracker()
     if breaker is None:
         breaker = CircuitBreaker()
+    if max_turns is None:
+        max_turns = LoopConfig.DEFAULT_MAX_TURNS
 
     all_defs = get_all_definitions()
     all_handlers = get_all_handlers()
@@ -120,7 +122,22 @@ def agent_loop(
         tool_handlers = all_handlers
 
     rounds_without_todo = 0
+    turn_count = 0
+    consecutive_llm_errors = 0
+    
     while True:
+        turn_count += 1
+
+        # ── 循环保护：maxTurns 限制 ──
+        if turn_count > max_turns:
+            print(f"\033[31m[Agent] Reached max turns ({max_turns}), stopping.\033[0m")
+            return tracker, breaker
+
+        # ── 循环保护：连续 LLM 错误计数 ──
+        if consecutive_llm_errors >= LoopConfig.MAX_CONSECUTIVE_LLM_ERRORS:
+            print(f"\033[31m[Agent] Consecutive error limit reached, stopping.\033[0m")
+            return tracker, breaker
+
         run_compression_pipeline(messages, tracker)
 
         utilization = tracker.get_utilization()
@@ -173,28 +190,66 @@ def agent_loop(
 
         _spinner.start()
         try:
+            print(f"\033[90m[turn {turn_count}] calling llm.chat (stream=True)\033[0m", flush=True)
             response = state.llm.chat(
                 system_prompt, messages, tool_defs,
                 stream=True, on_text=_on_text,
             )
+            print(f"\033[90m[turn {turn_count}] llm.chat returned, stop_reason={response.stop_reason}, blocks={len(response.content)}\033[0m", flush=True)
+        except (LLMError, APIRetryExhaustedError) as e:
+            _spinner.stop()
+            import traceback
+            print(f"\033[31m[Agent] LLM ERROR: type={type(e).__name__}, error_type={getattr(e, 'error_type', None)}, msg={e}\033[0m", flush=True)
+            print(f"\033[31m[Agent] Traceback: {traceback.format_exc()[-500:]}\033[0m", flush=True)
+            consecutive_llm_errors += 1
+            print(f"\033[31m[Agent] LLM error ({e.error_type.value if hasattr(e, 'error_type') and e.error_type else 'unknown'}): {e}\033[0m")
+            if consecutive_llm_errors >= LoopConfig.MAX_CONSECUTIVE_LLM_ERRORS:
+                print(f"\033[31m[Agent] Consecutive error limit reached, stopping.\033[0m")
+                return tracker, breaker
+            error_msg = {
+                "role": "user",
+                "content": f"<error>{e.error_type.value if hasattr(e, 'error_type') and e.error_type else 'unknown'}: {str(e)[:200]}</error>"
+            }
+            messages.append(error_msg)
+            tracker.track_new_message(error_msg)
+            compacted = check_and_compact(messages, tracker, breaker)
+            if compacted is not None:
+                messages[:] = compacted
+            continue
+        except Exception as e:
+            _spinner.stop()
+            import traceback
+            print(f"\033[31m[Agent] UNEXPECTED ERROR: type={type(e).__name__}, msg={e}\033[0m", flush=True)
+            print(f"\033[31m[Agent] Unexpected Traceback: {traceback.format_exc()}\033[0m", flush=True)
+            raise
         finally:
             _spinner.stop()
 
-        if response.stop_reason != "tool_use":
-            if first_token_received:
-                print()
+        # ✅ 检测输出截断（使用独立字段）
+        if response.is_truncated:
+            print(f"\033[90m[turn {turn_count}] DETECTED truncation, text_len={len(response.truncated_text)}\033[0m", flush=True)
+        else:
+            print(f"\033[90m[turn {turn_count}] no truncation detected, stop_reason={response.stop_reason}\033[0m", flush=True)
+
+        # ✅ 先添加 assistant 消息（只包含标准块）
         messages.append({"role": "assistant", "content": response.content})
         tracker.update_from_response(response)
 
-        if response.stop_reason != "tool_use":
-            return tracker, breaker
-
-        # === 工具执行（含权限检查 + 详情展示） ===
-        results = []
-        used_todo = False
-        perm_mode = state.PERMISSION_MODE
-        for block in response.content:
-            if block.type == "tool_use":
+        # ✅ 检查是否有工具调用
+        tool_blocks = [b for b in response.content if b.type == "tool_use"]
+        
+        # ✅ 优先处理工具调用
+        if tool_blocks:
+            if first_token_received:
+                print()  # 换行
+            
+            # === 工具执行（含权限检查） ===
+            results = []
+            used_todo = False
+            consecutive_tool_errors = 0
+            perm_mode = state.PERMISSION_MODE
+            
+            for block in tool_blocks:
                 perm = check_permission(block.name, block.input, perm_mode, state.perm_rules)
 
                 if perm["action"] == "deny":
@@ -221,7 +276,6 @@ def agent_loop(
                         output = "User denied this action."
                         print(f"\033[31m  ✗ {block.name}: USER DENIED\033[0m")
                 else:  # allow
-                    # SubAgent 特殊展示
                     if block.name == "agent":
                         atype = block.input.get("type", "general")
                         desc = block.input.get("description", "")
@@ -253,14 +307,89 @@ def agent_loop(
                 if block.name == "TodoWrite":
                     used_todo = True
 
-        rounds_without_todo = 0 if used_todo else rounds_without_todo + 1
-        if state.todo and state.todo.has_open_items() and rounds_without_todo >= 3:
-            results.append({"type": "text", "text": "<reminder>Update your todos.</reminder>"})
+                # ── 工具错误跟踪 ──
+                output_str = str(output)
+                is_error = (
+                    output_str.startswith("Error:") or
+                    output_str.startswith("<tool_use_error>") or
+                    output_str.startswith("<error>") or
+                    ("_json_parse_error" in output_str)
+                )
+                if is_error:
+                    consecutive_tool_errors += 1
 
-        tool_msg = {"role": "user", "content": results}
-        messages.append(tool_msg)
-        tracker.track_new_message(tool_msg)
+            # ── 循环保护：连续工具错误检查 ──
+            if consecutive_tool_errors >= LoopConfig.MAX_CONSECUTIVE_TOOL_ERRORS:
+                print(f"\033[31m[Agent] Too many consecutive tool errors ({consecutive_tool_errors}), stopping.\033[0m")
+                return tracker, breaker
 
-        compacted = check_and_compact(messages, tracker, breaker)
-        if compacted is not None:
-            messages[:] = compacted
+            rounds_without_todo = 0 if used_todo else rounds_without_todo + 1
+            if state.todo and state.todo.has_open_items() and rounds_without_todo >= 3:
+                results.append({"type": "text", "text": "<reminder>Update your todos.</reminder>"})
+
+            # ✅ 添加工具结果消息
+            tool_msg = {"role": "user", "content": results}
+            messages.append(tool_msg)
+            tracker.track_new_message(tool_msg)
+
+            # ✅ 如果同时被截断，在工具结果后追加延续提示
+            if response.is_truncated:
+                print(f"\033[33m[turn {turn_count}] INJECTING truncation continuation after tool results\033[0m", flush=True)
+                continuation_msg = {
+                    "role": "user",
+                    "content": (
+                        f"<output_truncated>Your previous text output was cut off at {len(response.truncated_text)} characters "
+                        f"due to max_tokens limit. Please continue your response naturally from where it was interrupted, "
+                        f"without repeating what was already said.</output_truncated>"
+                    ),
+                }
+                messages.append(continuation_msg)
+                tracker.track_new_message(continuation_msg)
+
+            # 压缩检查
+            compacted = check_and_compact(messages, tracker, breaker)
+            if compacted is not None:
+                messages[:] = compacted
+
+            # ✅ 重置 LLM 错误计数（成功执行）
+            consecutive_llm_errors = 0
+            
+            # 继续下一轮
+            continue
+
+        # ✅ 没有工具调用，检查是否仅因截断
+        elif response.is_truncated:
+            if first_token_received:
+                print()
+            
+            # 输出被截断，注入继续生成的消息
+            print(f"\033[33m[turn {turn_count}] INJECTING truncation continuation\033[0m", flush=True)
+            continuation_msg = {
+                "role": "user",
+                "content": (
+                    f"<output_truncated>The output above was cut off at {len(response.truncated_text)} characters "
+                    f"due to max_tokens limit. Please continue your previous response naturally, "
+                    f"starting from where it left off. Do not repeat what was already said.</output_truncated>"
+                ),
+            }
+            messages.append(continuation_msg)
+            tracker.track_new_message(continuation_msg)
+            
+            compacted = check_and_compact(messages, tracker, breaker)
+            if compacted is not None:
+                messages[:] = compacted
+            
+            print(f"\033[33m[turn {turn_count}] CONTINUING after truncation, messages count now={len(messages)}\033[0m", flush=True)
+            
+            # ✅ 重置 LLM 错误计数
+            consecutive_llm_errors = 0
+            continue
+
+        # ✅ 正常结束（没有工具调用，没有截断）
+        else:
+            if first_token_received:
+                print()
+            
+            # ✅ 重置 LLM 错误计数
+            consecutive_llm_errors = 0
+            return tracker, breaker
