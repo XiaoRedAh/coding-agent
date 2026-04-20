@@ -1,16 +1,17 @@
 """
-agents/coordinator.py - Coordinator 模式（协调者-工作者架构）
+agents/coordinator.py - Coordinator 协调者模式
 
-Coordinator 不是一个独立的 agent 循环——它是**主 Agent 的一种运行模式**。
-当 COORDINATOR_MODE 环境变量设置时：
-- 主 Agent 的系统提示被替换为协调者提示
-- 主 Agent 的工具池被过滤为只保留管理工具（agent + 通信工具）
-- Coordinator 通过 agent 工具派生 Worker 执行实际代码操作
+Coordinator 是主 Agent 的一种运行模式，通过 COORDINATOR_MODE=1 激活。
 
-关键原则："理解不可委派"——Coordinator 必须综合 Worker 的研究发现后，
-给出具体的实施指令，不能简单转发。
+架构：
+- Coordinator 接收用户请求，自己进行任务规划和拆分
+- 并行派生多个 Worker 执行子任务
+- 收集 task-notification 汇总结果后响应用户
 
-对应 Claude Code 的 coordinator/coordinatorMode.ts。
+特点：
+- 无依赖并行：任务必须可独立执行
+- 职责清晰：Coordinator 规划，Worker 执行
+- 日志完善：用户可看到所有子 agent 的启动、状态、完成情况
 """
 
 import os
@@ -30,48 +31,99 @@ def is_coordinator_mode() -> bool:
 #  Coordinator 工具白名单
 # ──────────────────────────────────────────────
 
-# Coordinator 只有管理权，没有执行权（不能直接改文件）
+# Coordinator 工具集：只读调研工具 + agent 工具
+# 注意：不包含 write_file/edit_file，Coordinator 不直接修改文件
 COORDINATOR_ALLOWED_TOOLS = frozenset({
-    "agent",            # 派生 Worker 或创建队友（统一入口）
-    "send_message",     # 向队友发消息
-    "read_inbox",       # 读取收件箱
-    "broadcast",        # 广播消息
-    "list_teammates",   # 列出队友
+    "agent",         # 派生 Worker
+    "read_file",     # 读取文件
+    "list_files",    # 列出文件
+    "grep_search",   # 搜索代码
+    "run_shell",     # 运行命令
 })
+
+
+# ──────────────────────────────────────────────
+#  工具描述（用于日志输出）
+# ──────────────────────────────────────────────
+
+COORDINATOR_TOOL_DESCRIPTIONS = {
+    "agent":         "派生子 Agent",
+    "read_file":     "读取文件",
+    "list_files":    "列出文件",
+    "grep_search":   "搜索代码",
+    "run_shell":     "执行命令",
+}
 
 
 # ──────────────────────────────────────────────
 #  Coordinator 系统提示词
 # ──────────────────────────────────────────────
 
-COORDINATOR_SYSTEM_PROMPT = f"""\
-You are a Coordinator — a project manager that breaks down complex tasks \
-and delegates them to specialized Worker agents.
+COORDINATOR_SYSTEM_PROMPT = """\
+You are an Orchestrator — a project manager that decomposes complex requests \
+into independent sub-tasks, delegates to Workers, and synthesizes results.
 
-CRITICAL RULES:
-1. You CANNOT modify files directly. You have NO file operation tools.
-2. You MUST delegate all code operations to Workers via the `agent` tool.
-3. NEVER write "based on your findings, fix the bug" — you must synthesize \
-   findings yourself and give Workers SPECIFIC instructions with file paths, \
-   line numbers, and exact changes needed.
-4. When a Worker reports back, READ and UNDERSTAND the result before \
-   deciding the next step.
+## YOUR RESPONSIBILITIES
 
-Your workflow:
-1. RESEARCH: Spawn explore Workers to investigate the codebase
-2. SYNTHESIS: Read Worker results, design implementation spec
-3. IMPLEMENTATION: Spawn general Workers with specific instructions
-4. VERIFICATION: Spawn verification Worker to check correctness
+1. **Plan**: Analyze request, decompose into independent sub-tasks
+2. **Delegate**: Spawn Workers to execute sub-tasks in parallel. When multiple independent subtasks need to be launched, multiple agent tool calls must be generated within the same response to achieve parallel execution.
+3. **Synthesize**: Collect results and present final output to user
 
-Agent types you can use:
-- explore: Read-only search (fast, safe, good for investigation)
-- plan: Read-only structured planning
-- general: Full file tools (can read/write/edit)
-- verification: Adversarial testing (tries to break code, read-only)
+## DECOMPOSITION RULES
 
-Working directory: {WORKDIR}
+**CRITICAL**: Sub-tasks must be truly independent:
+- Each Worker works on DIFFERENT files or topics
+- No Worker waits for another Worker
+- Each outputs a self-contained result
 
-Remember: You are the brain, Workers are the hands. Think first, then delegate clearly."""
+**If tasks have dependencies, they CANNOT run in parallel — consider using SubAgent mode instead.**
+
+## DELEGATION
+
+- Use `agent(run_in_background=True)` for parallel execution
+- Provide each Worker: task description, target files, expected output
+- Workers run independently and concurrently
+
+## RESULT SYNTHESIS
+
+After Workers complete, check for these tags:
+- `<in-flight-count>N</in-flight-count>`: N Workers still running, WAIT for more
+- `<all-complete/>`: ALL Workers done, proceed to synthesize immediately
+
+**IMPORTANT**: When you see `<all-complete/>`, do NOT wait — synthesize and respond immediately.
+
+## WORKER TYPES
+
+- **explore**: Read-only investigation
+- **general**: Full capability (can execute any task, including file operations, shell commands, etc.)
+- **verification**: Adversarial testing
+
+## PARALLEL EXAMPLE
+
+User: "Analyze this codebase: auth system, database, API, tests"
+
+```
+1. [Worker: explore] Analyze auth system
+   - Files: auth/*.py
+   - Output: Auth architecture summary
+
+2. [Worker: explore] Analyze database models
+   - Files: models/*.py, db/*.py
+   - Output: DB schema summary
+
+3. [Worker: explore] Analyze API endpoints
+   - Files: api/*.py, routes/*.py
+   - Output: API inventory
+
+4. [Worker: explore] Analyze test coverage
+   - Files: tests/*.py
+   - Output: Test status report
+
+PARALLEL: All 4 tasks — no dependencies, different files
+```
+
+## WORKING DIRECTORY: {WORKDIR}
+"""
 
 
 def get_coordinator_config() -> dict:

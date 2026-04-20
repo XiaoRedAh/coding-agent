@@ -42,6 +42,7 @@ def _run_agent_loop(
     tool_defs: list,
     tool_handlers: dict,
     max_turns: int,
+    agent_type: str = "general",
 ) -> str:
     """
     子 Agent 的通用循环：LLM 调用 → 工具执行 → 返回最终文本。
@@ -69,26 +70,24 @@ def _run_agent_loop(
                 error_type = getattr(e, "error_type", None)
 
                 if error_type and not is_retryable_error(error_type):
-                    # 不可重试错误，直接记录并退出当前轮
-                    print(f"  [sub] LLM error (unretryable): {e}")
+                    # 不可重试错误
+                    print(f"\033[31m  [Worker:{agent_type}] LLM 错误 (不可重试): {e}\033[0m")
                     consecutive_llm_errors += 1
                     break
 
                 if retry_count >= RetryConfig.DEFAULT_MAX_RETRIES:
                     # 重试耗尽
-                    print(f"  [sub] LLM error (retries exhausted): {e}")
+                    print(f"\033[31m  [Worker:{agent_type}] LLM 错误 (重试耗尽): {e}\033[0m")
                     consecutive_llm_errors += 1
                     break
 
                 retry_count += 1
-                error_type = getattr(e, "error_type", None) or classify_api_error(e)
-                delay_ms = get_retry_delay(retry_count, error_type)
-                print(f"  [sub] LLM error, retry {retry_count}/{RetryConfig.DEFAULT_MAX_RETRIES} in {delay_ms/1000:.1f}s...")
-                time.sleep(delay_ms / 1000)
+                print(f"\033[33m  [Worker:{agent_type}] LLM 重试 {retry_count}/{RetryConfig.DEFAULT_MAX_RETRIES}...\033[0m")
+                time.sleep(0.5)  # 重试前短暂等待
             except Exception as e:
                 # 非 LLM 错误（如网络异常）
+                print(f"\033[31m  [Worker:{agent_type}] 意外错误: {e}\033[0m")
                 last_error = e
-                print(f"  [sub] Unexpected error: {e}")
                 consecutive_llm_errors += 1
                 break
 
@@ -134,7 +133,6 @@ def _run_agent_loop(
                     consecutive_tool_errors += 1
 
                 output_str = str(output)
-                print(f"  [sub] {block.name}: {output_str[:120]}")
 
                 # 检查输出中是否有错误标记
                 if output_str.startswith("Error:") or output_str.startswith("<tool_use_error>"):
@@ -148,7 +146,7 @@ def _run_agent_loop(
 
                 # 连续工具错误过多，提前退出
                 if consecutive_tool_errors >= LoopConfig.MAX_CONSECUTIVE_TOOL_ERRORS:
-                    print(f"  [sub] Too many tool errors ({consecutive_tool_errors}), stopping.")
+                    print(f"\033[31m  [Worker:{agent_type}] 工具错误过多 ({consecutive_tool_errors}), 停止\033[0m")
                     return f"(SubAgent stopped: {consecutive_tool_errors} tool errors in one turn)"
 
         messages.append({"role": "user", "content": results})
@@ -164,18 +162,17 @@ def _run_agent_loop(
     return "(subagent failed)"
 
 
-def run_subagent(prompt: str, agent_type: str = "general") -> str:
+def run_subagent(prompt: str, agent_type: str = "general", description: str = "") -> str:
     """同步子代理：阻塞主 Agent 直到完成。"""
     config = get_agent_config(agent_type)
     tool_defs, tool_handlers = get_filtered_tools(config["allowed_tools"])
     messages = [{"role": "user", "content": prompt}]
 
-    print(f"  [subagent:{agent_type}] starting (sync)...")
     result = _run_agent_loop(
         config["system_prompt"], messages, tool_defs, tool_handlers,
         config["max_turns"],
+        agent_type,
     )
-    print(f"  [subagent:{agent_type}] done.")
     return result
 
 
@@ -189,17 +186,30 @@ def run_subagent_async(
 
     结果不再依赖 BackgroundManager，而是通过独立的 state.agent_tasks 队列。
     主 Agent 在 query.py 中通过 agent_tasks.drain() 接收 <task-notification>。
+
+    日志格式：
+      [Coordinator] 启动 Worker: {description} (id: {task_id})
+      [Worker:{agent_type}] 任务进行中...
+      [Worker:{agent_type}] 完成 (id: {task_id})
     """
     task_id = f"agent-{uuid.uuid4().hex[:8]}"
+    label = description or agent_type
+
+    # 打印启动日志（供用户交互端查看）
+    print(f"  \033[36m[Coordinator]\033[0m 启动 Worker: \033[1m{label}\033[0m (type: {agent_type}, id: {task_id})")
+
+    # 通知队列 +1（用于追踪进行中的任务数）
+    state.agent_tasks.increment()
 
     def _run():
         try:
+            print(f"  \033[33m[Worker:{agent_type}]\033[0m 任务进行中... (id: {task_id})")
             result = run_subagent(prompt, agent_type)
             state.agent_tasks.submit(task_id, agent_type, "completed", result[:2000])
+            print(f"  \033[32m[Worker:{agent_type}]\033[0m 完成 (id: {task_id})")
         except Exception as e:
             state.agent_tasks.submit(task_id, agent_type, "error", str(e))
+            print(f"  \033[31m[Worker:{agent_type}]\033[0m 失败: {e} (id: {task_id})")
 
     threading.Thread(target=_run, daemon=True).start()
-    label = description or agent_type
-    print(f"  [subagent:{agent_type}] started in background (id: {task_id})")
-    return f"Background agent '{label}' started (id: {task_id}). You'll be notified when done."
+    return f"Worker '{label}' started in background (id: {task_id}). You'll be notified when done."

@@ -152,9 +152,26 @@ def agent_loop(
             messages.append(msg)
             tracker.track_new_message(msg)
 
-        # 异步 Agent 通知
-        if state.agent_tasks:
-            agent_notifs = state.agent_tasks.drain()
+        # 异步 Agent 通知处理
+        if state.agent_tasks and is_coordinator_mode():
+            # 1. 立即检查是否有已完成的任务
+            agent_notifs, in_flight = state.agent_tasks.drain()
+            has_new_notifications = bool(agent_notifs)
+
+            # 2. 如果没有新完成的，但还有在运行的，则进入阻塞等待
+            if not has_new_notifications and in_flight > 0:
+                print(f"\033[90m[Coordinator] 等待 {in_flight} 个 Worker 完成...\033[0m")
+                agent_notifs, in_flight = state.agent_tasks.wait_and_drain(timeout=120)
+
+                # 超时处理
+                if not agent_notifs:
+                    print(f"\033[93m[Coordinator] 等待超时，仍有 {in_flight} 个任务在运行，继续等待...\033[0m")
+                    continue
+
+                has_new_notifications = True
+                print(f"\033[90m[Coordinator] 收到 {len(agent_notifs)} 个通知，继续\033[0m")
+
+            # 3. 如果收到任何通知，处理并注入消息
             if agent_notifs:
                 parts = []
                 for n in agent_notifs:
@@ -167,9 +184,18 @@ def agent_loop(
                         f"  <result>{n['result']}</result>\n"
                         f"</task-notification>"
                     )
+                if in_flight > 0:
+                    parts.append(f"<in-flight-count>{in_flight}</in-flight-count>")
+                else:
+                    parts.append("<all-complete/>")
                 msg = {"role": "user", "content": "\n".join(parts)}
                 messages.append(msg)
                 tracker.track_new_message(msg)
+
+            # 4. 如果收到通知但还有任务在飞，跳过 LLM 调用，继续等待
+            if has_new_notifications and in_flight > 0:
+                print(f"\033[35m[Coordinator] 已收集结果，但仍有 {in_flight} 个任务在运行。继续等待...\033[0m")
+                continue
 
         # === LLM 调用（流式 + spinner） ===
         first_token_received = False
@@ -382,7 +408,7 @@ def agent_loop(
         else:
             if first_token_received:
                 print()
-            
+
             # ✅ 重置 LLM 错误计数
             consecutive_llm_errors = 0
             return tracker, breaker
