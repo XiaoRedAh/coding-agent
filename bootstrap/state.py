@@ -5,7 +5,7 @@ bootstrap/state.py - 集中式状态存储
 其他模块通过 `from bootstrap.state import ...` 访问共享状态，
 避免 import 循环和重复定义。
 
-运行时实例（todo, task_mgr, bg, bus, team, skills）在 main.py 初始化阶段赋值。
+运行时实例（todo, task_mgr, bg, skills）在 main.py 初始化阶段赋值。
 """
 
 import os
@@ -26,8 +26,6 @@ if os.getenv("ANTHROPIC_BASE_URL"):
 # === 路径常量 ===
 WORKDIR = Path.cwd()
 PROJECT_DIR = WORKDIR / ".xiaoagent"
-TEAM_DIR = PROJECT_DIR / "team"
-INBOX_DIR = TEAM_DIR / "inbox"
 TASKS_DIR = PROJECT_DIR / "tasks"
 SKILLS_DIR = WORKDIR / "skills"
 TRANSCRIPT_DIR = PROJECT_DIR / "transcripts"
@@ -66,22 +64,10 @@ POST_COMPACT_SKILLS_BUDGET = 25000
 # === 权限模式 ===
 PERMISSION_MODE = os.getenv("PERMISSION_MODE", "default")  # default/plan/acceptEdits/bypassPermissions/dontAsk
 
-# === 其他阈值 ===
-POLL_INTERVAL = 5
-IDLE_TIMEOUT = 60
-
-# === 消息类型白名单 ===
-VALID_MSG_TYPES = {
-    "message", "broadcast", "shutdown_request",
-    "shutdown_response", "plan_approval_response",
-}
-
 # === 运行时单例实例（在 main.py 初始化阶段赋值） ===
 todo = None       # TodoManager 实例
 task_mgr = None   # TaskManager 实例
 bg = None         # BackgroundManager 实例
-bus = None        # MessageBus 实例
-team = None       # TeammateManager 实例
 skills = None     # SkillLoader 实例
 perm_rules = None # PermissionRules 实例
 mcp = None        # McpManager 实例

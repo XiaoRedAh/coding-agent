@@ -171,13 +171,6 @@ def agent_loop(
                 messages.append(msg)
                 tracker.track_new_message(msg)
 
-        # 收件箱
-        inbox = state.bus.read_inbox("lead")
-        if inbox:
-            msg = {"role": "user", "content": f"<inbox>{json.dumps(inbox, indent=2)}</inbox>"}
-            messages.append(msg)
-            tracker.track_new_message(msg)
-
         # === LLM 调用（流式 + spinner） ===
         first_token_received = False
 

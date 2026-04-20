@@ -20,8 +20,6 @@ from bootstrap.state import SKILLS_DIR, PROJECT_DIR, WORKDIR
 from tools.TodoTool import TodoManager
 from services.tasks import TaskManager
 from services.background import BackgroundManager
-from services.bus import MessageBus
-from agents.team import TeammateManager
 from skills.loader import SkillLoader
 from services.permissions import PermissionRules
 from services.mcp import McpManager
@@ -36,12 +34,15 @@ def init():
     初始化所有全局单例实例，写入 bootstrap.state 模块。
 
     初始化顺序：
-    1. TodoManager - 内存待办清单
-    2. SkillLoader - 技能文件加载
-    3. TaskManager - 持久化任务管理
-    4. BackgroundManager - 后台任务管理
-    5. MessageBus - 消息总线
-    6. TeammateManager - 团队管理（依赖 bus 和 task_mgr）
+    1. LLM 适配器 - 语言模型客户端
+    2. TodoManager - 内存待办清单
+    3. SkillLoader - 技能文件加载
+    4. TaskManager - 持久化任务管理
+    5. BackgroundManager - 后台任务管理
+    6. PermissionRules - 权限规则
+    7. McpManager - MCP 服务器管理
+    8. MemoryManager - 记忆管理
+    9. AgentTaskQueue - Agent 任务队列
     """
     # LLM 适配器（支持 Anthropic 和 OpenAI 格式）
     state.llm = LLMAdapter.from_env()
@@ -53,8 +54,6 @@ def init():
     state.skills = SkillLoader(SKILLS_DIR, PROJECT_DIR / "skills", user_skills_dir)
     state.task_mgr = TaskManager()
     state.bg = BackgroundManager()
-    state.bus = MessageBus()
-    state.team = TeammateManager(state.bus, state.task_mgr)
     state.perm_rules = PermissionRules()
     state.perm_rules.load_from_settings()
     state.mcp = McpManager()

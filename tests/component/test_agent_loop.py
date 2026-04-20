@@ -28,7 +28,6 @@ def mock_env():
     """Patch query.state with llm.chat as the mock point."""
     mock_state = MagicMock()
     mock_state.bg.drain.return_value = []
-    mock_state.bus.read_inbox.return_value = []
     mock_state.agent_tasks = None
     mock_state.todo = None
     mock_state.PERMISSION_MODE = "bypassPermissions"
@@ -180,17 +179,6 @@ class TestAgentLoopNotifications:
         messages = [{"role": "user", "content": "check"}]
         agent_loop(messages)
         assert any("task-notification" in str(m.get("content", "")) for m in messages)
-
-    def test_inbox_message_injected(self, mock_env):
-        mock_state, mock_llm = mock_env
-        mock_state.bus.read_inbox.return_value = [
-            {"type": "message", "from": "researcher", "content": "Found bug"}
-        ]
-        mock_llm.chat.return_value = _mock_response()
-        from query import agent_loop
-        messages = [{"role": "user", "content": "check inbox"}]
-        agent_loop(messages)
-        assert any("inbox" in str(m.get("content", "")) for m in messages)
 
 
 class TestAgentLoopUnknownTool:

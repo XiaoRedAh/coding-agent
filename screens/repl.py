@@ -8,7 +8,6 @@ screens/repl.py - REPL 交互界面
 - 权限确认（含操作详情）
 """
 
-import json
 import sys
 import os
 import tempfile
@@ -117,12 +116,6 @@ def run_repl():
             continue
         if stripped == "/tasks":
             print(state.task_mgr.list_all())
-            continue
-        if stripped == "/team":
-            print(state.team.list_all())
-            continue
-        if stripped == "/inbox":
-            print(json.dumps(state.bus.read_inbox("lead"), indent=2))
             continue
         if stripped == "/edit":
             query = _open_editor()
