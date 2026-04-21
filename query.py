@@ -17,8 +17,9 @@ from services.compact import (
     run_compression_pipeline, check_and_compact,
 )
 from tools import get_all_definitions, get_all_handlers
-from context import build_system_prompt
-from agents.coordinator import is_coordinator_mode, get_coordinator_config
+from context import build_system_prompt  # backward-compat for tests patching query.build_system_prompt
+from agents.coordinator import is_coordinator_mode
+from services.prompt_builder import PromptBuilder
 from services.permissions import check_permission
 from services.api_errors import LoopConfig, LLMError, APIRetryExhaustedError
 
@@ -109,17 +110,10 @@ def agent_loop(
 
     all_defs = get_all_definitions()
     all_handlers = get_all_handlers()
-
-    if is_coordinator_mode():
-        coord_config = get_coordinator_config()
-        system_prompt = coord_config["system_prompt"]
-        allowed = coord_config["allowed_tools"]
-        tool_defs = [d for d in all_defs if d["name"] in allowed]
-        tool_handlers = {k: v for k, v in all_handlers.items() if k in allowed}
-    else:
-        system_prompt = build_system_prompt()
-        tool_defs = all_defs
-        tool_handlers = all_handlers
+    runtime_config = PromptBuilder.build_runtime_config(all_defs, all_handlers)
+    system_prompt = runtime_config["system_prompt"]
+    tool_defs = runtime_config["tool_defs"]
+    tool_handlers = runtime_config["tool_handlers"]
 
     rounds_without_todo = 0
     turn_count = 0
@@ -153,13 +147,15 @@ def agent_loop(
             tracker.track_new_message(msg)
 
         # 异步 Agent 通知处理
-        if state.agent_tasks and is_coordinator_mode():
+        if state.agent_tasks:
+            coordinator_mode = is_coordinator_mode()
+
             # 1. 立即检查是否有已完成的任务
             agent_notifs, in_flight = state.agent_tasks.drain()
             has_new_notifications = bool(agent_notifs)
 
-            # 2. 如果没有新完成的，但还有在运行的，则进入阻塞等待
-            if not has_new_notifications and in_flight > 0:
+            # 2. Coordinator 模式：如果没有新完成的，但还有在运行的，则进入阻塞等待
+            if coordinator_mode and not has_new_notifications and in_flight > 0:
                 print(f"\033[90m[Coordinator] 等待 {in_flight} 个 Worker 完成...\033[0m")
                 agent_notifs, in_flight = state.agent_tasks.wait_and_drain(timeout=120)
 
@@ -184,16 +180,18 @@ def agent_loop(
                         f"  <result>{n['result']}</result>\n"
                         f"</task-notification>"
                     )
-                if in_flight > 0:
+
+                if coordinator_mode and in_flight > 0:
                     parts.append(f"<in-flight-count>{in_flight}</in-flight-count>")
-                else:
+                elif coordinator_mode:
                     parts.append("<all-complete/>")
+
                 msg = {"role": "user", "content": "\n".join(parts)}
                 messages.append(msg)
                 tracker.track_new_message(msg)
 
-            # 4. 如果收到通知但还有任务在飞，跳过 LLM 调用，继续等待
-            if has_new_notifications and in_flight > 0:
+            # 4. Coordinator 模式：如果收到通知但还有任务在飞，跳过 LLM 调用，继续等待
+            if coordinator_mode and has_new_notifications and in_flight > 0:
                 print(f"\033[35m[Coordinator] 已收集结果，但仍有 {in_flight} 个任务在运行。继续等待...\033[0m")
                 continue
 

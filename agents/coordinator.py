@@ -59,7 +59,7 @@ COORDINATOR_TOOL_DESCRIPTIONS = {
 #  Coordinator 系统提示词
 # ──────────────────────────────────────────────
 
-COORDINATOR_SYSTEM_PROMPT = """\
+COORDINATOR_SYSTEM_PROMPT = f"""\
 You are an Orchestrator — a project manager that decomposes complex requests \
 into independent sub-tasks, delegates to Workers, and synthesizes results.
 

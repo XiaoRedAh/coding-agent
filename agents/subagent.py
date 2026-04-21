@@ -117,25 +117,31 @@ def _run_agent_loop(
         for block in resp.content:
             if block.type == "tool_use":
                 handler = tool_handlers.get(block.name)
+                tool_failed = False
+
                 try:
                     # 检查是否有 JSON 解析错误（由 llm.py 注入）
                     block_input = block.input
                     if isinstance(block_input, dict) and "_json_parse_error" in block_input:
                         output = f"Error: JSON parse failed - {block_input['_json_parse_error']}"
-                        consecutive_tool_errors += 1
+                        tool_failed = True
                     elif handler:
                         output = str(handler(**block_input))
                     else:
                         output = f"Unknown tool: {block.name}"
-                        consecutive_tool_errors += 1
+                        tool_failed = True
                 except Exception as e:
                     output = f"Error: {e}"
-                    consecutive_tool_errors += 1
+                    tool_failed = True
 
                 output_str = str(output)
 
                 # 检查输出中是否有错误标记
                 if output_str.startswith("Error:") or output_str.startswith("<tool_use_error>"):
+                    tool_failed = True
+
+                # 每个工具调用最多记一次失败，避免重复计数导致提前停止
+                if tool_failed:
                     consecutive_tool_errors += 1
 
                 results.append({
