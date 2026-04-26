@@ -22,6 +22,7 @@ from agents.coordinator import is_coordinator_mode
 from services.prompt_builder import PromptBuilder
 from services.permissions import check_permission
 from services.api_errors import LoopConfig, LLMError, APIRetryExhaustedError
+from workflows.gateway import maybe_run_workflow
 
 
 # ──────────────────────────────────────────────
@@ -107,6 +108,16 @@ def agent_loop(
         breaker = CircuitBreaker()
     if max_turns is None:
         max_turns = LoopConfig.DEFAULT_MAX_TURNS
+
+    # Workflow 快捷入口：/workflow ... 或 SOP_MODE=1
+    handled, workflow_reply = maybe_run_workflow(messages)
+    if handled:
+        if workflow_reply:
+            print(workflow_reply)
+            assistant_msg = {"role": "assistant", "content": workflow_reply}
+            messages.append(assistant_msg)
+            tracker.track_new_message(assistant_msg)
+        return tracker, breaker
 
     all_defs = get_all_definitions()
     all_handlers = get_all_handlers()

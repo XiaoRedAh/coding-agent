@@ -20,11 +20,13 @@ agents/subagent.py - SubAgent 模式（同步 + 异步）
 import threading
 import uuid
 import time
+from typing import Callable
 
 from bootstrap import state
 from agents.definitions import get_agent_config, get_filtered_tools
 from utils.truncate import truncate_result
 from services.api_errors import (
+    APIErrorType,
     LoopConfig,
     RetryConfig,
     is_retryable_error,
@@ -36,6 +38,32 @@ from services.api_errors import (
 )
 
 
+def _chat_with_timeout(system_prompt: str, messages: list, tool_defs: list, agent_type: str):
+    """给子代理的 LLM 调用增加超时护栏，避免单次调用无限卡住。"""
+    result_holder = {}
+    error_holder = {}
+
+    def _target():
+        try:
+            result_holder["resp"] = state.llm.chat(system_prompt, messages, tool_defs)
+        except Exception as exc:  # pragma: no cover - 防御分支
+            error_holder["error"] = exc
+
+    thread = threading.Thread(target=_target, daemon=True)
+    thread.start()
+    thread.join(timeout=LoopConfig.LLM_RESPONSE_TIMEOUT)
+
+    if thread.is_alive():
+        raise LLMError(
+            f"LLM call timed out after {LoopConfig.LLM_RESPONSE_TIMEOUT}s",
+            APIErrorType.TIMEOUT,
+        )
+
+    if "error" in error_holder:
+        raise error_holder["error"]
+    return result_holder.get("resp")
+
+
 def _run_agent_loop(
     system_prompt: str,
     messages: list,
@@ -43,6 +71,7 @@ def _run_agent_loop(
     tool_handlers: dict,
     max_turns: int,
     agent_type: str = "general",
+    status_callback: Callable[[str], None] | None = None,
 ) -> str:
     """
     子 Agent 的通用循环：LLM 调用 → 工具执行 → 返回最终文本。
@@ -57,13 +86,18 @@ def _run_agent_loop(
     consecutive_llm_errors = 0
 
     for turn in range(max_turns):
+        if status_callback:
+            status_callback(f"turn {turn + 1}/{max_turns}: waiting llm")
+
+        # 每轮必须重置，避免失败时误用上一轮 resp 导致循环异常。
+        resp = None
         # ── LLM 调用（带重试）──
         last_error = None
         retry_count = 0
 
         while retry_count <= RetryConfig.DEFAULT_MAX_RETRIES:
             try:
-                resp = state.llm.chat(system_prompt, messages, tool_defs)
+                resp = _chat_with_timeout(system_prompt, messages, tool_defs, agent_type)
                 break  # 成功，跳出重试循环
             except (LLMError, APIRetryExhaustedError) as e:
                 last_error = e
@@ -83,6 +117,8 @@ def _run_agent_loop(
 
                 retry_count += 1
                 print(f"\033[33m  [Worker:{agent_type}] LLM 重试 {retry_count}/{RetryConfig.DEFAULT_MAX_RETRIES}...\033[0m")
+                if status_callback:
+                    status_callback(f"turn {turn + 1}/{max_turns}: llm retry {retry_count}")
                 time.sleep(0.5)  # 重试前短暂等待
             except Exception as e:
                 # 非 LLM 错误（如网络异常）
@@ -108,6 +144,8 @@ def _run_agent_loop(
         messages.append({"role": "assistant", "content": resp.content})
 
         if resp.stop_reason != "tool_use":
+            if status_callback:
+                status_callback(f"turn {turn + 1}/{max_turns}: finalizing")
             break
 
         # ── 工具执行 ──
@@ -116,6 +154,8 @@ def _run_agent_loop(
 
         for block in resp.content:
             if block.type == "tool_use":
+                if status_callback:
+                    status_callback(f"turn {turn + 1}/{max_turns}: tool {block.name}")
                 handler = tool_handlers.get(block.name)
                 tool_failed = False
 
@@ -158,6 +198,8 @@ def _run_agent_loop(
         messages.append({"role": "user", "content": results})
 
     if resp:
+        if status_callback:
+            status_callback("done")
         text_parts = []
         for b in resp.content:
             if hasattr(b, "text") and b.text:
@@ -168,7 +210,12 @@ def _run_agent_loop(
     return "(subagent failed)"
 
 
-def run_subagent(prompt: str, agent_type: str = "general", description: str = "") -> str:
+def run_subagent(
+    prompt: str,
+    agent_type: str = "general",
+    description: str = "",
+    status_callback: Callable[[str], None] | None = None,
+) -> str:
     """同步子代理：阻塞主 Agent 直到完成。"""
     config = get_agent_config(agent_type)
     tool_defs, tool_handlers = get_filtered_tools(config["allowed_tools"])
@@ -178,6 +225,7 @@ def run_subagent(prompt: str, agent_type: str = "general", description: str = ""
         config["system_prompt"], messages, tool_defs, tool_handlers,
         config["max_turns"],
         agent_type,
+        status_callback=status_callback,
     )
     return result
 

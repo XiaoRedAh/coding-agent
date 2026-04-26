@@ -1,0 +1,47 @@
+workflow_id: metagpt-lite-3role
+name: MetaGPT Lite Three-Role Workflow
+schema_version: "1.0"
+max_steps: 24
+max_fix_rounds: 3
+terminal_topics:
+  - test.passed
+  - workflow.escalated
+  - workflow.failed
+roles:
+  - name: AnalystDesigner
+    description: Analyze requirement and produce implementable design package.
+    agent_type: plan
+    subscriptions:
+      - user.requirement
+    prompt_template: analyst.md
+    output_artifacts:
+      markdown: analysis/analysis_design.md
+      json: analysis/analysis_design.json
+    publish:
+      default: analysis.done
+
+  - name: Engineer
+    description: Implement code and provide delivery manifest.
+    agent_type: general
+    subscriptions:
+      - analysis.done
+      - test.failed
+    prompt_template: engineer.md
+    output_artifacts:
+      markdown: code/change_summary.md
+      json: code/delivery_manifest.json
+    publish:
+      default: code.submitted
+
+  - name: Tester
+    description: Run tests and decide pass/fail with defects.
+    agent_type: verification
+    subscriptions:
+      - code.submitted
+    prompt_template: tester.md
+    output_artifacts:
+      markdown: test/test_report.md
+      json: test/test_report.json
+    publish:
+      on_pass: test.passed
+      on_fail: test.failed

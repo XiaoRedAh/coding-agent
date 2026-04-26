@@ -215,7 +215,14 @@ class LLMAdapter:
             kwargs["tools"] = oai_tools
 
         resp = self.client.chat.completions.create(**kwargs)
-        choice = resp.choices[0]
+        if resp is None:
+            raise LLMError("OpenAI API returned empty response", APIErrorType.CONNECTION_ERROR)
+
+        choices = getattr(resp, "choices", None)
+        if not choices:
+            raise LLMError("OpenAI API returned no choices", APIErrorType.SERVER_ERROR)
+
+        choice = choices[0]
 
         # 5. 标准化响应（只包含标准块）
         content = self._convert_oai_response_with_parse_recovery(choice)
