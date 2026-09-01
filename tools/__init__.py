@@ -16,13 +16,13 @@ from bootstrap import state
 
 
 def get_all_definitions() -> list:
-    """收集所有工具定义（内置 + MCP）。"""
+    """收集所有工具定义（内置 + MCP）。agent 工具的 enum 动态反映注册表。"""
     defs = []
     for mod in [FileReadTool, FileWriteTool, FileEditTool,
                 ListFilesTool, GrepSearchTool, BashTool]:
         defs.append(mod.DEFINITION)
-    for mod in [AgentTool, SkillTool]:
-        defs.append(mod.DEFINITION)
+    defs.append(AgentTool.get_definition())  # 动态：含自定义 agent 类型
+    defs.append(SkillTool.DEFINITION)
     defs.append(TodoTool.DEFINITION)
     defs.extend(TaskTool.DEFINITIONS)
 

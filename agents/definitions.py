@@ -1,11 +1,12 @@
 """
-agents/definitions.py - 内置智能体类型定义
+agents/definitions.py - Agent 类型定义（S6 后为兼容层）
 
-定义 4 种内置子 Agent 类型的配置：提示词、工具集、行为参数。
-所有类型共用统一的 get_filtered_tools() 从全局工具注册表动态过滤，
-避免工具定义的重复维护。
+实际的类型定义已迁移到 YAML（agents/builtins/*.yaml + 用户自定义目录），
+由 agents/registry.py 统一加载。本模块保留原有导出以兼容既有调用方：
+    AGENT_DEFINITIONS / READ_ONLY_TOOLS / GENERAL_TOOLS /
+    get_agent_config / get_filtered_tools
 
-对应 Claude Code 的 built-in/ 目录下的预置 Agent 定义。
+新代码请直接使用 agents.registry。
 """
 
 # ──────────────────────────────────────────────
@@ -24,134 +25,19 @@ GENERAL_TOOLS = frozenset({
 })
 
 # ──────────────────────────────────────────────
-#  系统提示词
+#  注册表接入（内置 + 用户自定义统一来源）
 # ──────────────────────────────────────────────
 
-EXPLORE_PROMPT = """\
-You are an Explore agent — a fast, READ-ONLY sub-agent specialized for \
-searching and understanding codebases.
+from agents.registry import default_registry  # noqa: E402
 
-IMPORTANT CONSTRAINTS:
-- You are READ-ONLY. Do NOT modify any files.
-- If using run_shell, only use read commands (ls, cat, find, grep, git log, etc.)
-- Do NOT use write, edit, rm, mv, or any destructive shell commands.
-
-Your job:
-- Search files by patterns (list_files)
-- Search code for keywords (grep_search)
-- Read file contents (read_file)
-- Run read-only shell commands (git log, git diff, find, etc.)
-
-Be fast and thorough. Return a concise summary of your findings."""
-
-PLAN_PROMPT = """\
-You are a Plan agent — a READ-ONLY sub-agent specialized for designing \
-implementation plans.
-
-IMPORTANT CONSTRAINTS:
-- You are READ-ONLY. Do NOT modify any files.
-
-Your job:
-- Analyze the codebase to understand the current architecture
-- Design a step-by-step implementation plan
-- Identify critical files that need modification
-- Consider architectural trade-offs
-
-Return a structured plan with:
-1. Summary of current state
-2. Step-by-step implementation steps
-3. Critical files for implementation (3-5 files)
-4. Potential risks or considerations"""
-
-GENERAL_PROMPT = """\
-You are a General sub-agent handling an independent task.
-Complete the assigned task and return a concise result.
-You have access to all file operation tools.
-Focus on the specific task given — do not over-engineer."""
-
-VERIFICATION_PROMPT = """\
-You are a Verification agent — an adversarial tester whose goal is to \
-PROVE that code DOES NOT work correctly.
-
-IMPORTANT CONSTRAINTS:
-- You are READ-ONLY. Do NOT modify project files.
-- You CAN run tests and analysis commands via run_shell.
-
-Your approach:
-- Run existing tests (if any)
-- Check for edge cases the implementation may have missed
-- Look for type errors, null pointer risks, off-by-one errors
-- Verify error handling paths
-- Check that changes are consistent across files
-
-DO NOT make excuses to skip verification. DO NOT say "it looks correct" \
-without actually running tests or checks.
-
-Return a structured report:
-1. Tests run and their results
-2. Issues found (with file paths and line numbers)
-3. Potential risks not covered by tests
-4. Overall assessment (PASS / FAIL / NEEDS_ATTENTION)"""
-
-# ──────────────────────────────────────────────
-#  Agent 配置注册表
-# ──────────────────────────────────────────────
-
-AGENT_DEFINITIONS = {
-    "explore": {
-        "system_prompt": EXPLORE_PROMPT,
-        "allowed_tools": READ_ONLY_TOOLS,
-        "max_turns": 15,
-        "description": "Fast read-only code search and exploration",
-        "when_to_use": (
-            "Fast agent for exploring codebases. Use when you need to quickly "
-            "find files, search code for keywords, or understand codebase structure."
-        ),
-        "background": False,
-    },
-    "plan": {
-        "system_prompt": PLAN_PROMPT,
-        "allowed_tools": READ_ONLY_TOOLS,
-        "max_turns": 20,
-        "description": "Structured implementation planning",
-        "when_to_use": (
-            "Software architect agent for designing implementation plans. "
-            "Returns step-by-step plans and identifies critical files."
-        ),
-        "background": False,
-    },
-    "general": {
-        "system_prompt": GENERAL_PROMPT,
-        "allowed_tools": GENERAL_TOOLS,
-        "max_turns": 30,
-        "description": "Full-capability task execution",
-        "when_to_use": (
-            "General-purpose agent for multi-step tasks. Has full file "
-            "operation tools. Use when task requires reading AND writing files."
-        ),
-        "background": False,
-    },
-    "verification": {
-        "system_prompt": VERIFICATION_PROMPT,
-        "allowed_tools": READ_ONLY_TOOLS,
-        "max_turns": 20,
-        "description": "Adversarial code verification and testing",
-        "when_to_use": (
-            "Verification agent that tries to BREAK implementations. "
-            "Use after making code changes to verify correctness."
-        ),
-        "background": True,  # 始终后台运行
-    },
-}
+# 兼容旧形态：name -> config 映射（导入时的快照；
+# 自定义 agent 生效后通过 get_agent_config 动态查询）
+AGENT_DEFINITIONS = default_registry().as_dict()
 
 
 def get_agent_config(agent_type: str) -> dict:
-    """获取指定类型的 Agent 配置。"""
-    config = AGENT_DEFINITIONS.get(agent_type.lower())
-    if config is None:
-        available = ", ".join(AGENT_DEFINITIONS.keys())
-        raise ValueError(f"Unknown agent type '{agent_type}'. Available: {available}")
-    return config
+    """获取指定类型的 Agent 配置（含用户自定义类型）。"""
+    return default_registry().get(agent_type)
 
 
 def get_filtered_tools(allowed_tools: frozenset) -> tuple[list, dict]:

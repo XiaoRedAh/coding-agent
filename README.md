@@ -408,7 +408,7 @@ Skill 文件中支持以下占位符，`load_skill` 加载时自动替换：
 - **同步**：阻塞等待，直接返回结果
 - **异步**：后台线程执行，通过通知队列回传结果（`run_in_background=True`）
 
-4 种内置 Agent 类型：
+4 种内置 Agent 类型（定义在 `agents/builtins/*.yaml`）：
 
 | 类型 | 说明 | 最大轮次 | 工具范围 |
 |------|------|----------|----------|
@@ -416,6 +416,36 @@ Skill 文件中支持以下占位符，`load_skill` 加载时自动替换：
 | `plan` | 结构化实现规划 | 20 | 全部（不含 agent） |
 | `general` | 完整任务执行 | 30 | 全部（不含 agent） |
 | `verification` | 对抗性测试验证 | 20 | 全部（始终后台运行） |
+
+#### 自定义子 Agent
+
+无需改代码——在以下任一目录放置 YAML 定义文件即可注册新的子 Agent 类型
+（`agent` 工具的 type 参数会自动包含它，LLM 可直接选用）：
+
+| 目录 | 优先级 | 适用场景 |
+|------|--------|---------|
+| `agents/builtins/` | 低（内置） | 项目内置类型 |
+| `~/.xiaoagent/agents/` | 中 | 用户全局 |
+| `{工作目录}/.xiaoagent/agents/` | 高 | 项目专属（可覆盖内置） |
+
+YAML 格式（与内置定义完全一致）：
+
+```yaml
+name: doc-writer            # 可省略，默认取文件名
+description: 一句话用途描述
+when_to_use: 何时应选用此类型
+system_prompt: |
+  You are a documentation writer. ...
+allowed_tools:               # 该类型可用的工具白名单
+  - read_file
+  - write_file
+  - grep_search
+max_turns: 15                # 最大循环轮次
+background: false            # true 则始终后台运行
+```
+
+定义文件支持 `.yaml` / `.yml` / `.json`；缺失必填字段、未知字段、类型错误
+会在启动时得到带文件定位的明确报错。
 
 ### 模式 B：Coordinator（规划-执行分离）
 
