@@ -37,6 +37,7 @@ class BackgroundManager:
             r = subprocess.run(
                 command, shell=True, cwd=state.WORKDIR,
                 capture_output=True, text=True, timeout=timeout,
+                encoding="utf-8", errors="replace",  # S5: 显式 UTF-8
             )
             output = (r.stdout + r.stderr).strip()[:50000]
             self.tasks[tid].update({

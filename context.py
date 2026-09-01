@@ -50,6 +50,7 @@ def get_git_context() -> str:
         opts = {
             "cwd": state.WORKDIR, "capture_output": True, "text": True,
             "timeout": settings.context.git_timeout,
+            "encoding": "utf-8", "errors": "replace",  # S5: 显式 UTF-8
         }
         branch = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], **opts).stdout.strip()
         log = subprocess.run(["git", "log", "--oneline", "-5"], **opts).stdout.strip()

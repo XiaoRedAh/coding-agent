@@ -126,6 +126,21 @@ def is_error_output(output_str: str) -> bool:
     )
 
 
+def is_tool_error(output) -> bool:
+    """
+    结构化错误判定：优先读 ToolResult 元数据，回退到字符串嗅探。
+    （S5：工具可返回 core.results.ToolResult，循环层自动识别）
+    """
+    # 结构化结果（ToolResult）
+    ok = getattr(output, "ok", None)
+    if ok is False:
+        return True
+    if ok is True:
+        return False
+    # 兼容：str 输出走字符串嗅探
+    return is_error_output(str(output))
+
+
 def extract_text(response) -> str:
     """从响应 content blocks 中提取全部文本（只接受 str，防御 MagicMock 等对象）。"""
     parts = []
@@ -266,13 +281,13 @@ class AgentLoop:
                 consecutive_tool_errors = 0
                 for block in tool_blocks:
                     output = hooks.execute_tool(ctx, block)
-                    output_str = str(output)
+                    output_str = output.to_str() if hasattr(output, "to_str") else str(output)
                     results.append({
                         "type": "tool_result",
                         "tool_use_id": block.id,
                         "content": output_str,
                     })
-                    if is_error_output(output_str):
+                    if is_tool_error(output):
                         consecutive_tool_errors += 1
 
                 if consecutive_tool_errors >= spec.max_consecutive_tool_errors:

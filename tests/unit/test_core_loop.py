@@ -13,8 +13,9 @@ import pytest
 
 from core.loop import (
     AgentLoop, LoopSpec, LoopHooks, LoopResult,
-    is_error_output, extract_text,
+    is_error_output, extract_text, is_tool_error,
 )
+from core.results import ToolResult
 from services.api_errors import APIErrorType, LLMError
 
 
@@ -270,6 +271,24 @@ class TestHelpers:
         assert is_error_output('{"_json_parse_error": "x"}')
         assert not is_error_output("normal output")
         assert not is_error_output("Errorless")  # 前缀严格匹配
+
+    def test_is_tool_error_structured(self):
+        """ToolResult 结构化判定优先于字符串嗅探。"""
+        assert is_tool_error(ToolResult.failure("Error: x", "not_found"))
+        assert not is_tool_error(ToolResult.success("Error: 看起来像错误但其实是正常输出"))
+        assert not is_tool_error(ToolResult.success("ok"))
+
+    def test_is_tool_error_string_fallback(self):
+        assert is_tool_error("Error: x")
+        assert not is_tool_error("fine")
+
+    def test_tool_result_roundtrip(self):
+        r = ToolResult.success("data")
+        assert r.to_str() == "data"
+        assert r.ok is True and r.error is None
+        f = ToolResult.failure("Error: boom", "io")
+        assert f.to_str() == "Error: boom"
+        assert f.error == "io"
 
     def test_extract_text(self):
         resp = SimpleNamespace(content=[

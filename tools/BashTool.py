@@ -9,8 +9,6 @@ tools/BashTool.py - Shell 命令执行工具
 """
 
 import subprocess
-import threading
-import uuid
 
 from bootstrap.state import settings
 from bootstrap import state
@@ -65,6 +63,7 @@ def _run_sync(command: str, timeout: int) -> str:
         r = subprocess.run(
             command, shell=True, cwd=state.WORKDIR,
             capture_output=True, text=True, timeout=timeout,
+            encoding="utf-8", errors="replace",  # S5: 显式 UTF-8，避免 GBK 解码崩溃
         )
         stdout = r.stdout.strip()
         stderr = r.stderr.strip()
@@ -90,24 +89,8 @@ def _run_sync(command: str, timeout: int) -> str:
 
 
 def _run_background(command: str, timeout: int) -> str:
-    """后台线程执行，结果通过 bg.notifications 回传到 query.py"""
-    tid = str(uuid.uuid4())[:8]
-
-    def _exec():
-        try:
-            r = subprocess.run(
-                command, shell=True, cwd=state.WORKDIR,
-                capture_output=True, text=True, timeout=timeout,
-            )
-            output = (r.stdout + r.stderr).strip()[:50000]
-            result = output or "(no output)"
-            status = "completed"
-        except Exception as e:
-            result = str(e)
-            status = "error"
-        state.bg.notifications.put({
-            "task_id": tid, "status": status, "result": result[:500],
-        })
-
-    threading.Thread(target=_exec, daemon=True).start()
-    return f"Background task {tid} started: {command[:80]}. You'll be notified when done."
+    """后台线程执行，结果通过 state.bg 通知队列回传（S5: 复用 BackgroundManager，单一后台路径）"""
+    from services.background import BackgroundManager
+    # BashTool 始终通过全局单例运行（与 query.py 的 drain 消费方对齐）
+    bg = state.bg if isinstance(state.bg, BackgroundManager) else BackgroundManager()
+    return bg.run(command, timeout)
