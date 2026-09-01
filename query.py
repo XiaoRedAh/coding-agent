@@ -27,6 +27,7 @@ from services.compact import (
 from workflows.gateway import maybe_run_workflow
 
 from core.loop import AgentLoop, LoopSpec, LoopHooks
+from core.results import ToolResult
 from core.notifications import collect_bg_notifications, process_agent_notifications
 from ui.render import (
     Spinner, print_permission_detail, confirm_action,
@@ -126,7 +127,8 @@ class _MainLoopHooks(LoopHooks):
         perm = check_permission(block.name, block.input, perm_mode, state.perm_rules)
 
         if perm["action"] == "deny":
-            output = f"Permission denied: {perm['reason']}"
+            output = ToolResult.failure(
+                f"Permission denied: {perm['reason']}", "permission_denied")
             print(f"\033[31m  ✗ {block.name}: DENIED ({perm['reason']})\033[0m")
             return output
 
@@ -139,7 +141,8 @@ class _MainLoopHooks(LoopHooks):
                 output = self._run_handler(block)
                 print_tool_result(block.name, output)
             else:
-                output = "User denied this action."
+                output = ToolResult.failure(
+                    "User denied this action.", "permission_denied")
                 print(f"\033[31m  ✗ {block.name}: USER DENIED\033[0m")
             return output
 
@@ -159,9 +162,10 @@ class _MainLoopHooks(LoopHooks):
     def _run_handler(self, block) -> str:
         handler = self.tool_handlers.get(block.name)
         try:
-            return handler(**block.input) if handler else f"Unknown tool: {block.name}"
+            return handler(**block.input) if handler else ToolResult.failure(
+                f"Unknown tool: {block.name}", "unknown_tool")
         except Exception as e:
-            return f"Error: {e}"
+            return ToolResult.failure(f"Error: {e}", "exception")
 
     # ── 工具结果后处理 ──
 

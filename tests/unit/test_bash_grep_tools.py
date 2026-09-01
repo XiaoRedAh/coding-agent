@@ -29,6 +29,8 @@ class TestBashToolSync:
     def test_command_failure_reports_exit_code(self, bash_workdir):
         out = BashTool.handle(f'"{sys.executable}" -c "import sys; sys.exit(2)"')
         assert out.startswith("Command failed (exit code 2)")
+        assert out.ok is False
+        assert out.error == "command_failed"
 
     def test_command_stderr_included_on_failure(self, bash_workdir):
         out = BashTool.handle(
@@ -43,6 +45,7 @@ class TestBashToolSync:
     def test_timeout_returns_error(self, bash_workdir):
         out = BashTool.handle(f'"{sys.executable}" -c "import time; time.sleep(3)"', timeout=1)
         assert out == "Error: Command timed out after 1s"
+        assert out.error == "timeout"
 
     def test_cwd_is_workdir(self, bash_workdir):
         # 在工作目录执行 cd（Windows cmd 的 cd 输出当前目录）
@@ -157,6 +160,12 @@ class TestGrepSearchTool:
     def test_invalid_regex_returns_error(self, grep_workdir):
         out = GrepSearchTool.handle("(unclosed", path=".")
         assert out.startswith("Error")
+        assert out.error == "invalid_input"
+
+    def test_path_not_found_returns_error(self, grep_workdir):
+        out = GrepSearchTool.handle("x", path="no_such_dir")
+        assert out.startswith("Error")
+        assert out.error == "not_found"
 
     def test_recursive_search(self, grep_workdir):
         """子目录文件也应被搜索到。"""

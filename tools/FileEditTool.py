@@ -13,6 +13,7 @@ tools/FileEditTool.py - 文件编辑工具
 import re
 
 from utils.path import safe_path
+from core.results import ToolResult
 
 DEFINITION = {
     "name": "edit_file",
@@ -90,15 +91,16 @@ def handle(file_path: str, old_string: str, new_string: str) -> str:
         # 查找匹配（支持引号容错）
         actual = _find_actual_string(content, old_string)
         if actual is None:
-            return f"Error: old_string not found in {file_path}"
+            return ToolResult.failure(
+                f"Error: old_string not found in {file_path}", "not_found")
 
         # 唯一匹配检查
         count = content.count(actual)
         if count > 1:
-            return (
+            return ToolResult.failure(
                 f"Error: old_string found {count} times in {file_path}. "
-                f"Must be unique. Provide more surrounding context to disambiguate."
-            )
+                f"Must be unique. Provide more surrounding context to disambiguate.",
+                "ambiguous_match")
 
         # 执行替换
         new_content = content.replace(actual, new_string, 1)
@@ -110,5 +112,9 @@ def handle(file_path: str, old_string: str, new_string: str) -> str:
             via_note = " (matched via quote normalization)"
         diff = _generate_diff(content, new_content, actual, new_string)
         return f"Successfully edited {file_path}{via_note}\n\n{diff}"
+    except ValueError as e:
+        return ToolResult.failure(f"Error editing file: {e}", "path_escape")
+    except FileNotFoundError as e:
+        return ToolResult.failure(f"Error editing file: {e}", "not_found")
     except Exception as e:
-        return f"Error editing file: {e}"
+        return ToolResult.failure(f"Error editing file: {e}", "io_error")

@@ -9,6 +9,7 @@ tools/FileReadTool.py - 文件读取工具
 
 from utils.path import safe_path
 from utils.truncate import truncate_result
+from core.results import ToolResult
 
 DEFINITION = {
     "name": "read_file",
@@ -47,5 +48,10 @@ def handle(file_path: str, limit: int = None) -> str:
             f"{str(i + 1).rjust(4)} | {line}" for i, line in enumerate(lines)
         ]
         return truncate_result("\n".join(numbered) + truncated_note)
+    except ValueError as e:
+        # safe_path 路径逃逸
+        return ToolResult.failure(f"Error reading file: {e}", "path_escape")
+    except FileNotFoundError as e:
+        return ToolResult.failure(f"Error reading file: {e}", "not_found")
     except Exception as e:
-        return f"Error reading file: {e}"
+        return ToolResult.failure(f"Error reading file: {e}", "io_error")

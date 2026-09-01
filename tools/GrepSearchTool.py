@@ -15,6 +15,7 @@ import time
 from bootstrap import state
 from bootstrap.state import settings
 from utils.truncate import truncate_result
+from core.results import ToolResult
 
 DEFINITION = {
     "name": "grep_search",
@@ -105,7 +106,7 @@ def handle(pattern: str, path: str = None, include: str = None) -> str:
     try:
         regex = re.compile(pattern)
     except re.error as e:
-        return f"Error: Invalid regex pattern: {e}"
+        return ToolResult.failure(f"Error: Invalid regex pattern: {e}", "invalid_input")
 
     # path 为相对路径时相对 WORKDIR 解析（默认 "." 即整个工作目录）
     if path and not os.path.isabs(path):
@@ -116,7 +117,7 @@ def handle(pattern: str, path: str = None, include: str = None) -> str:
         search_path = str(state.WORKDIR)
 
     if not os.path.exists(search_path):
-        return f"Error: Path not found: {search_path}"
+        return ToolResult.failure(f"Error: Path not found: {search_path}", "not_found")
 
     started = time.time()
     matches: list[str] = []
@@ -124,7 +125,8 @@ def handle(pattern: str, path: str = None, include: str = None) -> str:
 
     for file_path in _iter_files(search_path, include):
         if time.time() - started > timeout_s:
-            return f"Error: Search timed out ({timeout_s}s)"
+            return ToolResult.failure(
+                f"Error: Search timed out ({timeout_s}s)", "timeout")
 
         numbered = _read_lines_safe(file_path)
         if numbered is None:

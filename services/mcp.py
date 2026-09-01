@@ -273,6 +273,7 @@ class McpManager:
 
     def get_tool_handlers(self) -> dict:
         """获取所有 MCP 工具的处理函数映射"""
+        from core.results import ToolResult
         handlers = {}
         for server_name, conn in self.connections.items():
             for tool in conn.tools:
@@ -284,8 +285,11 @@ class McpManager:
                         if result.get("isError"):
                             content = result.get("content", [])
                             if content and isinstance(content, list):
-                                return f"MCP Error: {content[0].get('text', 'Unknown error')}"
-                            return "MCP Error: Unknown error"
+                                return ToolResult.failure(
+                                    f"MCP Error: {content[0].get('text', 'Unknown error')}",
+                                    "mcp_error")
+                            return ToolResult.failure(
+                                "MCP Error: Unknown error", "mcp_error")
                         content = result.get("content", [])
                         if content and isinstance(content, list):
                             texts = [c.get("text", "") for c in content if c.get("type") == "text"]

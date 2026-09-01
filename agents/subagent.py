@@ -27,6 +27,7 @@ from services.api_errors import (
     RetryConfig,  # noqa: F401  (保留：外部测试可能 patch agents.subagent.RetryConfig)
 )
 from core.loop import AgentLoop, LoopSpec, LoopHooks
+from core.results import ToolResult
 
 
 class _SubAgentHooks(LoopHooks):
@@ -50,13 +51,15 @@ class _SubAgentHooks(LoopHooks):
 
         # llm.py 层注入的 JSON 解析错误标记
         if isinstance(block_input, dict) and "_json_parse_error" in block_input:
-            return f"Error: JSON parse failed - {block_input['_json_parse_error']}"
+            return ToolResult.failure(
+                f"Error: JSON parse failed - {block_input['_json_parse_error']}",
+                "json_parse_error")
         if not handler:
-            return f"Unknown tool: {block.name}"
+            return ToolResult.failure(f"Unknown tool: {block.name}", "unknown_tool")
         try:
             return truncate_result(str(handler(**block_input)))
         except Exception as e:
-            return f"Error: {e}"
+            return ToolResult.failure(f"Error: {e}", "exception")
 
 
 def _run_agent_loop(

@@ -13,6 +13,7 @@ import os
 from bootstrap.state import settings
 from bootstrap import state
 from utils.truncate import truncate_result
+from core.results import ToolResult
 
 DEFINITION = {
     "name": "list_files",
@@ -68,4 +69,4 @@ def handle(pattern: str, path: str = None) -> str:
 
         return truncate_result(result)
     except Exception as e:
-        return f"Error listing files: {e}"
+        return ToolResult.failure(f"Error listing files: {e}", "io_error")

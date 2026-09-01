@@ -126,3 +126,47 @@ class TestMcpManager:
         mgr = McpManager()
         mgr.load_and_connect()
         assert mgr.server_count == 0
+
+
+class TestMcpToolResultWrap:
+    """S5 迁移：MCP 工具失败应返回 ToolResult.failure（原 'MCP Error:' 前缀嗅探不到）。"""
+
+    def _manager_with_fake_conn(self, call_result):
+        from types import SimpleNamespace
+        mgr = McpManager()
+        conn = SimpleNamespace(
+            tools=[{"name": "query", "description": "Run a query"}],
+            call_tool=lambda name, args: call_result,
+            instructions=None,
+        )
+        mgr.connections["db"] = conn
+        return mgr
+
+    def test_success_returns_text(self):
+        mgr = self._manager_with_fake_conn({
+            "isError": False,
+            "content": [{"type": "text", "text": "3 rows"}],
+        })
+        out = mgr.get_tool_handlers()["mcp__db__query"](sql="SELECT 1")
+        assert out == "3 rows"
+        assert not hasattr(out, "ok") or out.ok is True
+
+    def test_error_returns_tool_result(self):
+        mgr = self._manager_with_fake_conn({
+            "isError": True,
+            "content": [{"type": "text", "text": "syntax error near FROM"}],
+        })
+        out = mgr.get_tool_handlers()["mcp__db__query"](sql="BAD")
+        from core.results import ToolResult
+        from core.loop import is_tool_error
+        assert isinstance(out, ToolResult)
+        assert is_tool_error(out)              # 关键：旧字符串嗅探判不出，现在能判出
+        assert out.error == "mcp_error"
+        assert "syntax error near FROM" in out  # 报错详情对 LLM 可见
+
+    def test_error_unknown_content(self):
+        mgr = self._manager_with_fake_conn({"isError": True, "content": []})
+        out = mgr.get_tool_handlers()["mcp__db__query"]()
+        from core.loop import is_tool_error
+        assert is_tool_error(out)
+        assert "Unknown error" in out

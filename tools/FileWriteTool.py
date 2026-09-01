@@ -8,6 +8,7 @@ System Prompt 中约束 LLM "优先用 edit_file，只对新文件用 write_file
 """
 
 from utils.path import safe_path
+from core.results import ToolResult
 
 DEFINITION = {
     "name": "write_file",
@@ -39,5 +40,8 @@ def handle(file_path: str, content: str) -> str:
         fp.parent.mkdir(parents=True, exist_ok=True)
         fp.write_text(content, encoding="utf-8")
         return f"Successfully wrote to {file_path} ({len(content)} bytes)"
+    except ValueError as e:
+        # safe_path 路径逃逸
+        return ToolResult.failure(f"Error writing file: {e}", "path_escape")
     except Exception as e:
-        return f"Error writing file: {e}"
+        return ToolResult.failure(f"Error writing file: {e}", "io_error")

@@ -282,6 +282,18 @@ class TestHelpers:
         assert is_tool_error("Error: x")
         assert not is_tool_error("fine")
 
+    def test_tool_result_is_str_subclass(self):
+        """ToolResult 继承 str：所有字符串操作照常工作（零破坏迁移的关键）。"""
+        r = ToolResult.failure("Error: boom", "io")
+        assert isinstance(r, str)
+        assert r.startswith("Error:")
+        assert r[:5] == "Error"
+        assert r == "Error: boom"          # 字符串相等
+        assert len(r) == len("Error: boom")
+        assert "boom" in r
+        import json
+        assert json.dumps({"c": r}) == '{"c": "Error: boom"}'
+
     def test_tool_result_roundtrip(self):
         r = ToolResult.success("data")
         assert r.to_str() == "data"
@@ -289,6 +301,44 @@ class TestHelpers:
         f = ToolResult.failure("Error: boom", "io")
         assert f.to_str() == "Error: boom"
         assert f.error == "io"
+
+    def test_tool_result_error_flag_injected(self):
+        """失败的工具调用：tool_result 块应带 is_error=True（Anthropic 原生标志）。"""
+        class FailOnceHooks(LoopHooks):
+            def __init__(self):
+                self.calls = 0
+
+            def execute_tool(self, ctx, block):
+                self.calls += 1
+                if self.calls == 1:
+                    return ToolResult.failure("Error: x", "not_found")
+                return "ok"
+
+        messages = []
+        AgentLoop(
+            _FakeLLM([_tool_resp(), _text_resp("done")]),
+            _spec(), FailOnceHooks(),
+        ).run(messages)
+        # messages: [assistant(tool_use), user(tool_result), assistant(text)]
+        tool_entry = messages[1]["content"][0]
+        assert tool_entry["is_error"] is True
+        assert tool_entry["content"] == "Error: x"
+
+    def test_tool_result_success_no_error_flag(self):
+        """成功的工具调用：tool_result 块不应带 is_error。"""
+        class OkHooks(LoopHooks):
+            def execute_tool(self, ctx, block):
+                # 内容像错误但声明成功：不计错、无 is_error 标志
+                return ToolResult.success("Error: 是正常输出内容")
+
+        messages = []
+        result = AgentLoop(
+            _FakeLLM([_tool_resp(), _text_resp("done")]),
+            _spec(), OkHooks(),
+        ).run(messages)
+        assert result.stop_reason == "end_turn"  # 未触发 tool_errors
+        tool_entry = messages[1]["content"][0]
+        assert "is_error" not in tool_entry
 
     def test_extract_text(self):
         resp = SimpleNamespace(content=[

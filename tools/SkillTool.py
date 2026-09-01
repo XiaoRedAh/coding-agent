@@ -9,6 +9,7 @@ LLM 判断需要时调用此工具加载完整内容。
 """
 
 from bootstrap import state
+from core.results import ToolResult
 
 DEFINITION = {
     "name": "load_skill",
@@ -36,4 +37,7 @@ DEFINITION = {
 
 def handle(name: str, args: str = "") -> str:
     """加载指定技能的完整内容"""
-    return state.skills.load(name, args)
+    result = state.skills.load(name, args)
+    if isinstance(result, str) and result.startswith("Error:"):
+        return ToolResult.failure(result, "unknown_skill")
+    return result

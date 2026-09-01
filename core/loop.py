@@ -128,16 +128,16 @@ def is_error_output(output_str: str) -> bool:
 
 def is_tool_error(output) -> bool:
     """
-    结构化错误判定：优先读 ToolResult 元数据，回退到字符串嗅探。
-    （S5：工具可返回 core.results.ToolResult，循环层自动识别）
+    工具结果错误判定：优先读 ToolResult.ok（结构化），回退字符串嗅探。
+
+    ToolResult 是 str 子类（见 core/results.py），普通 str / 异常对象
+    走 is_error_output 嗅探（兼容第三方 handler）。
     """
-    # 结构化结果（ToolResult）
     ok = getattr(output, "ok", None)
     if ok is False:
         return True
     if ok is True:
         return False
-    # 兼容：str 输出走字符串嗅探
     return is_error_output(str(output))
 
 
@@ -281,13 +281,18 @@ class AgentLoop:
                 consecutive_tool_errors = 0
                 for block in tool_blocks:
                     output = hooks.execute_tool(ctx, block)
-                    output_str = output.to_str() if hasattr(output, "to_str") else str(output)
-                    results.append({
+                    failed = is_tool_error(output)
+                    # ToolResult 是 str 子类，本身就是可注入的内容
+                    entry = {
                         "type": "tool_result",
                         "tool_use_id": block.id,
-                        "content": output_str,
-                    })
-                    if is_tool_error(output):
+                        "content": str(output),
+                    }
+                    if failed:
+                        # Anthropic 原生错误标志：模型将其作为一等失败信号对待
+                        entry["is_error"] = True
+                    results.append(entry)
+                    if failed:
                         consecutive_tool_errors += 1
 
                 if consecutive_tool_errors >= spec.max_consecutive_tool_errors:

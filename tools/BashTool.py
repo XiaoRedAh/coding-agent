@@ -13,6 +13,7 @@ import subprocess
 from bootstrap.state import settings
 from bootstrap import state
 from utils.truncate import truncate_result
+from core.results import ToolResult
 
 DEFINITION = {
     "name": "run_shell",
@@ -83,9 +84,10 @@ def _run_sync(command: str, timeout: int) -> str:
             parts.append(f"Stdout:\n{stdout}")
         if stderr:
             parts.append(f"Stderr:\n{stderr}")
-        return truncate_result("\n".join(parts))
+        return ToolResult.failure(truncate_result("\n".join(parts)), "command_failed")
     except subprocess.TimeoutExpired:
-        return f"Error: Command timed out after {timeout}s"
+        return ToolResult.failure(
+            f"Error: Command timed out after {timeout}s", "timeout")
 
 
 def _run_background(command: str, timeout: int) -> str:

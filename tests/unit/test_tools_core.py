@@ -43,11 +43,14 @@ class TestFileReadTool:
     def test_read_nonexistent_returns_error(self, tool_workdir):
         out = FileReadTool.handle("no_such_file.txt")
         assert out.startswith("Error reading file:")
+        assert out.ok is False
+        assert out.error == "not_found"
 
     def test_read_path_escape_blocked(self, tool_workdir):
         out = FileReadTool.handle("../../etc/passwd")
         assert out.startswith("Error reading file:")
         assert "escapes workspace" in out
+        assert out.error == "path_escape"
 
     def test_read_utf8_chinese(self, tool_workdir):
         f = tool_workdir / "cn.txt"
@@ -86,6 +89,7 @@ class TestFileWriteTool:
         out = FileWriteTool.handle("../outside.txt", "x")
         assert out.startswith("Error writing file:")
         assert "escapes workspace" in out
+        assert out.error == "path_escape"
 
     def test_write_utf8_chinese(self, tool_workdir):
         FileWriteTool.handle("cn.txt", "中文内容")
@@ -341,6 +345,8 @@ class TestSkillTool:
         out = SkillTool.handle("nonexistent")
         assert out.startswith("Error: Unknown skill")
         assert "demo" in out  # 列出可用技能
+        assert out.ok is False
+        assert out.error == "unknown_skill"
 
     def test_definition_schema(self):
         from tools import SkillTool
