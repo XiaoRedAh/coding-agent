@@ -123,28 +123,31 @@ class APIErrorMessage:
 
 
 # ──────────────────────────────────────────────
-#  重试配置常量
+#  重试配置常量（值来自 config/ 分层配置）
 # ──────────────────────────────────────────────
 
+from bootstrap.state import settings as _settings
+
+
 class RetryConfig:
-    """API 重试配置。所有重试相关常量集中于此。"""
+    """API 重试配置。所有重试相关常量集中于此（可在 config/defaults.yaml 的 retry 节调整）。"""
 
     # 重试次数
-    DEFAULT_MAX_RETRIES = 3          # 默认最大重试次数
-    PROMPT_TOO_LONG_MAX_RETRIES = 2  # Prompt 过长错误的最大重试次数（通常需要压缩上下文）
+    DEFAULT_MAX_RETRIES = _settings.retry.default_max_retries          # 默认最大重试次数
+    PROMPT_TOO_LONG_MAX_RETRIES = _settings.retry.prompt_too_long_max_retries  # Prompt 过长错误的最大重试次数（通常需要压缩上下文）
 
     # 退避策略
-    BASE_DELAY_MS = 1000             # 基础退避延迟（毫秒）
-    MAX_DELAY_MS = 32000             # 最大退避延迟（毫秒）
-    JITTER_RATIO = 0.25              # 随机 jitter 比例（base * 0.25）
+    BASE_DELAY_MS = _settings.retry.base_delay_ms             # 基础退避延迟（毫秒）
+    MAX_DELAY_MS = _settings.retry.max_delay_ms               # 最大退避延迟（毫秒）
+    JITTER_RATIO = _settings.retry.jitter_ratio               # 随机 jitter 比例（base * 0.25）
 
     # 429 特殊处理
-    RATE_LIMIT_SHORT_RETRY_MS = 20000  # 短等待（<20s）直接重试
-    RATE_LIMIT_COOLDOWN_MS = 600000    # 30 分钟 cooldown
+    RATE_LIMIT_SHORT_RETRY_MS = _settings.retry.rate_limit_short_retry_ms  # 短等待（<20s）直接重试
+    RATE_LIMIT_COOLDOWN_MS = _settings.retry.rate_limit_cooldown_ms        # 30 分钟 cooldown
 
     # 529 特殊处理
-    OVERLOAD_MAX_RETRIES = 3          # 服务器过载最大重试次数
-    OVERLOAD_BASE_DELAY_MS = 500      # 更短的初始延迟
+    OVERLOAD_MAX_RETRIES = _settings.retry.overload_max_retries          # 服务器过载最大重试次数
+    OVERLOAD_BASE_DELAY_MS = _settings.retry.overload_base_delay_ms      # 更短的初始延迟
 
     # 持久会话模式（无人值守）
     PERSISTENT_MAX_BACKOFF_MS = 300000  # 5 分钟
@@ -153,26 +156,26 @@ class RetryConfig:
 
 
 # ──────────────────────────────────────────────
-#  Agent Loop 配置常量
+#  Agent Loop 配置常量（值来自 config/ 分层配置）
 # ──────────────────────────────────────────────
 
 class LoopConfig:
-    """Agent Loop 保护配置。防止无限循环和长时间运行。"""
+    """Agent Loop 保护配置。防止无限循环和长时间运行。（config/defaults.yaml 的 loop 节）"""
 
     # 最大轮次限制
-    DEFAULT_MAX_TURNS = 50           # 默认最大执行轮次
-    SUBAGENT_MAX_TURNS = 30          # SubAgent 默认最大轮次
-    COORDINATOR_MAX_TURNS = 20      # Coordinator 默认最大轮次
+    DEFAULT_MAX_TURNS = _settings.loop.default_max_turns      # 默认最大执行轮次
+    SUBAGENT_MAX_TURNS = _settings.loop.subagent_max_turns    # SubAgent 默认最大轮次
+    COORDINATOR_MAX_TURNS = _settings.loop.coordinator_max_turns  # Coordinator 默认最大轮次
 
     # 连续错误限制
-    MAX_CONSECUTIVE_TOOL_ERRORS = 5  # 连续工具错误阈值
-    MAX_CONSECUTIVE_LLM_ERRORS = 3  # 连续 LLM 调用错误阈值
+    MAX_CONSECUTIVE_TOOL_ERRORS = _settings.loop.max_consecutive_tool_errors  # 连续工具错误阈值
+    MAX_CONSECUTIVE_LLM_ERRORS = _settings.loop.max_consecutive_llm_errors    # 连续 LLM 调用错误阈值
 
     # 最小输出检测
     MIN_OUTPUT_LENGTH = 5           # 最小有效输出长度（用于检测静默失败）
 
     # 超时配置
-    LLM_RESPONSE_TIMEOUT = 300      # LLM 响应超时（秒）
+    LLM_RESPONSE_TIMEOUT = _settings.llm.timeout_seconds  # LLM 响应超时（秒）
 
 
 # ──────────────────────────────────────────────

@@ -35,19 +35,30 @@
 ```
 coding agent/
 ├── main.py                        # CLI 入口，初始化所有全局单例
-├── query.py                       # ★ Agent Loop 核心状态机（每轮：压缩→调用LLM→处理工具→循环保护）
+├── query.py                       # ★ 主 Agent 循环（薄组装层：配置+hooks 组装，骨架在 core/loop）
 ├── context.py                     # ★ System Prompt 构建器（动静分离 + Prompt Cache 标记）
 ├── system-prompt.md               # System Prompt 模板（运行时依赖，勿移动）
 ├── .env.example                   # 环境变量模板
 ├── mcp.json.example               # MCP 配置示例
 ├── requirements.txt               # Python 依赖
 │
+├── config/                        # 分层配置系统
+│   ├── defaults.yaml              # 全量默认配置（约 40 项参数，带注释，改配置不改代码）
+│   └── loader.py                  # 四层合并（内置<用户级<项目级<环境变量）+ 校验 + 冻结 Settings
+│
+├── core/                          # Agent 核心运行时
+│   ├── loop.py                    # ★ 统一 Agent Loop（主/子 agent 共用骨架，差异以 LoopSpec+Hooks 表达）
+│   └── notifications.py           # 后台/Agent 通知收集（含 Coordinator 阻塞等待逻辑）
+│
+├── ui/                            # 终端渲染（与核心逻辑分离）
+│   └── render.py                  # spinner（含等待秒数）/ 权限确认交互 / 工具结果打印
+│
 ├── bootstrap/                     # 引导和全局状态
 │   └── state.py                   # ★ 集中式状态存储：路径常量、压缩阈值、所有运行时单例
 │
 ├── agents/                        # 多 Agent 系统
 │   ├── definitions.py             # 4 种内置 Agent 类型（explore/plan/general/verification）
-│   ├── subagent.py                # ★ SubAgent 执行引擎（同步+异步，超时护栏，连续错误限制）
+│   ├── subagent.py                # ★ SubAgent 执行引擎（统一循环的薄封装：同步+异步）
 │   ├── coordinator.py             # ★ Coordinator 协调者模式（规划-执行分离）
 │   ├── task_queue.py              # 异步 Agent 任务通知队列
 │   └── custom_registry.py         # 用户自定义角色注册表
@@ -135,13 +146,28 @@ coding agent/
 pip install -r requirements.txt
 ```
 
+**注意：需要 Python 3.10+。**
+
 ### 2. 配置环境变量
 
 ```bash
 cp .env.example .env
 ```
 
-编辑 `.env` 文件，选择一种模型方案配置（详见下方模型配置章节）。
+编辑 `.env` 文件，选择一种模型方案配置（详见下方模型配置章节）。`.env` 只放机密（API Key）和模型选择。
+
+### 3. 行为配置（可选）
+
+所有运行参数（超时、压缩阈值、循环保护、各工具上限、目录名等约 40 项）集中在 `config/defaults.yaml`，**改配置无需改代码**。覆盖方式（优先级从低到高）：
+
+| 层级 | 位置 | 用途 |
+|------|------|------|
+| 内置默认 | `config/defaults.yaml` | 全量参数 + 注释 |
+| 用户全局 | `~/.xiaoagent/config.yaml` | 个人偏好 |
+| 项目级 | `{工作目录}/.xiaoagent/config.yaml` | 项目定制 |
+| 环境变量 | `XIAOAGENT__节__键`（如 `XIAOAGENT__LOOP__DEFAULT_MAX_TURNS=10`） | 临时覆盖 |
+
+配置文件只需写要覆盖的键（YAML 节结构与 defaults.yaml 一致），写错节名/键名/类型会在启动时得到明确的报错。
 
 ---
 
@@ -503,12 +529,14 @@ pytest eval/ -v
 
 ## 文档索引
 
-`docs/` 目录包含项目调研、设计和分析文档：
+`docs/` 目录按性质分类存放项目文档，索引见 [`docs/README.md`](docs/README.md)：
 
-- `项目详解.md` / `项目详解-v2.md` — 项目架构详细分析
-- `MCP深度解读.md` — MCP 协议深入解读
-- `Agent Skills深度解读.md` — Skills 系统深度分析
-- `Coordinator模式详解.md` — Coordinator 模式设计文档
-- `项目评估体系详解.md` — 评估体系说明
-- `模型接入调研.md` — 多模型接入调研
-- 更多文档见 `docs/` 目录
+| 目录 | 内容 | 数量 |
+|------|------|------|
+| `docs/01-research/` | 外部技术/产品调研（MCP、Skills、LLM、竞品等） | 8 |
+| `docs/02-plans/` | 历史设计方案与实施计划 | 6 |
+| `docs/03-retrospectives/` | 开发过程复盘与时点记录 | 7 |
+| `docs/04-architecture/` | 项目架构详解（与代码对照阅读） | 5 |
+| `docs/archive/` | 已被新版本取代的过时文档 | 1 |
+
+另有 `cc源码调研/`（Claude Code 源码调研）与 `最小化对齐/`（模块对齐笔记）两个调研目录保留在项目根目录。

@@ -247,12 +247,9 @@ def evaluate_llm_integration() -> EvalResult:
             test_file = Path(td) / "eval_test.txt"
             test_file.write_text("The secret number is 7777.", encoding="utf-8")
 
-            # Temporarily set WORKDIR everywhere safe_path uses it
-            import utils.path as path_mod
+            # Temporarily set WORKDIR（S2 后 safe_path 动态读取 state.WORKDIR，一处即可）
             old_workdir = state.WORKDIR
-            old_path_workdir = path_mod.WORKDIR
             state.WORKDIR = Path(td)
-            path_mod.WORKDIR = Path(td)
             try:
                 result = run_subagent(
                     f"Read the file 'eval_test.txt' and tell me what the secret number is.",
@@ -262,7 +259,6 @@ def evaluate_llm_integration() -> EvalResult:
                          "7777", result[:120])
             finally:
                 state.WORKDIR = old_workdir
-                path_mod.WORKDIR = old_path_workdir
 
     except Exception as e:
         r.record(False, f"LLM integration error: {e}", "success", str(e)[:120])

@@ -9,7 +9,7 @@ tools/GrepSearchTool.py - 内容搜索工具
 
 import subprocess
 
-from bootstrap.state import WORKDIR
+from bootstrap import state
 from utils.truncate import truncate_result
 
 DEFINITION = {
@@ -38,8 +38,11 @@ DEFINITION = {
     },
 }
 
-# 最大返回匹配行数
-_MAX_MATCHES = 100
+# 最大返回匹配行数 / 搜索超时（来自 config/defaults.yaml tools 节）
+from bootstrap.state import settings as _settings
+
+_MAX_MATCHES = _settings.tools.grep_max_matches
+_GREP_TIMEOUT = _settings.tools.grep_timeout
 
 
 def handle(pattern: str, path: str = None, include: str = None) -> str:
@@ -54,10 +57,10 @@ def handle(pattern: str, path: str = None, include: str = None) -> str:
 
         r = subprocess.run(
             args,
-            cwd=WORKDIR,
+            cwd=state.WORKDIR,
             capture_output=True,
             text=True,
-            timeout=10,
+            timeout=_GREP_TIMEOUT,
         )
 
         if r.returncode == 1:
@@ -75,6 +78,6 @@ def handle(pattern: str, path: str = None, include: str = None) -> str:
 
         return truncate_result(result)
     except subprocess.TimeoutExpired:
-        return "Error: Search timed out (10s)"
+        return f"Error: Search timed out ({_GREP_TIMEOUT}s)"
     except Exception as e:
         return f"Error: {e}"

@@ -28,7 +28,9 @@ class TestMemoryManager:
         mem_dir = tmp_workdir / ".xiaoagent" / "memory"
         mem_dir.mkdir(parents=True)
         st.MEMORY_DIR = mem_dir
-        (mem_dir / "MEMORY.md").write_text("- [user_role](user_role.md) — Developer\n")
+        # 注意：必须显式 encoding="utf-8"（与 MemoryManager 的读取编码一致），
+        # 否则 Windows 下默认 GBK 写入的 em-dash 会导致 UTF-8 读取失败
+        (mem_dir / "MEMORY.md").write_text("- [user_role](user_role.md) — Developer\n", encoding="utf-8")
         mgr = MemoryManager()
         mgr.memory_dir = mem_dir
         content = mgr.get_index_content()
@@ -41,7 +43,7 @@ class TestMemoryManager:
         st.MEMORY_DIR = mem_dir
         # 250 lines — exceeds 200 limit
         lines = [f"- [memory_{i}](m{i}.md) — line {i}" for i in range(250)]
-        (mem_dir / "MEMORY.md").write_text("\n".join(lines))
+        (mem_dir / "MEMORY.md").write_text("\n".join(lines), encoding="utf-8")
         mgr = MemoryManager()
         mgr.memory_dir = mem_dir
         content = mgr.get_index_content()
@@ -73,8 +75,9 @@ class TestMemoryManager:
         mem_dir = tmp_workdir / ".xiaoagent" / "memory"
         mem_dir.mkdir(parents=True)
         st.MEMORY_DIR = mem_dir
-        (mem_dir / "user_role.md").write_text("---\nname: user_role\ndescription: Dev\ntype: user\n---\nContent")
-        (mem_dir / "MEMORY.md").write_text("index")
+        (mem_dir / "user_role.md").write_text(
+            "---\nname: user_role\ndescription: Dev\ntype: user\n---\nContent", encoding="utf-8")
+        (mem_dir / "MEMORY.md").write_text("index", encoding="utf-8")
         mgr = MemoryManager()
         mgr.memory_dir = mem_dir
         memories = mgr.list_memories()
@@ -107,7 +110,7 @@ class TestMemoryManager:
         mem_dir = tmp_workdir / ".xiaoagent" / "memory"
         mem_dir.mkdir(parents=True)
         st.MEMORY_DIR = mem_dir
-        (mem_dir / "MEMORY.md").write_text("- [test](test.md) — Test memory")
+        (mem_dir / "MEMORY.md").write_text("- [test](test.md) — Test memory", encoding="utf-8")
         mgr = MemoryManager()
         mgr.memory_dir = mem_dir
         section = mgr.get_prompt_section()

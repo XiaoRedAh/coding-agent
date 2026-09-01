@@ -33,12 +33,14 @@ from bootstrap.state import PROJECT_DIR
 
 
 # ──────────────────────────────────────────────
-#  配置
+#  配置（超时值来自 config/defaults.yaml mcp 节）
 # ──────────────────────────────────────────────
 
+from bootstrap.state import settings as _settings
+
 MCP_CONFIG_PATH = PROJECT_DIR / "mcp.json"
-MCP_TOOL_TIMEOUT = 120  # 工具调用超时（秒）
-MCP_CONNECT_TIMEOUT = 30  # 连接超时（秒）
+MCP_TOOL_TIMEOUT = _settings.mcp.tool_timeout      # 工具调用超时（秒）
+MCP_CONNECT_TIMEOUT = _settings.mcp.connect_timeout  # 连接超时（秒）
 
 
 def _normalize_name(name: str) -> str:

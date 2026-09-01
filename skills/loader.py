@@ -77,14 +77,16 @@ class SkillLoader:
         这是渐进式披露的第一阶段：只放名称和一句话描述，
         全部技能的简介通常只消耗几百 token。
         """
+        from bootstrap.state import settings
         if not self.skills:
             return "(no skills)"
+        max_desc = settings.tools.skill_description_max_chars
         lines = []
         for name, skill in self.skills.items():
             desc = skill["meta"].get("description", "-")
-            # 截断过长的描述（对齐 cc 的 MAX 250 字符限制）
-            if len(desc) > 250:
-                desc = desc[:247] + "..."
+            # 截断过长的描述（上限来自 config/defaults.yaml）
+            if len(desc) > max_desc:
+                desc = desc[:max_desc - 3] + "..."
             lines.append(f"  - {name}: {desc}")
         return "\n".join(lines)
 

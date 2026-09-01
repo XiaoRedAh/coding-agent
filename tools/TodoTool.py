@@ -2,8 +2,11 @@
 tools/TodoTool.py - 待办事项工具
 
 轻量级内存待办清单，用于短期任务跟踪（会话内有效，不持久化）。
-支持 pending / in_progress / completed 三种状态，最多 20 条。
+支持 pending / in_progress / completed 三种状态，条数上限可配置
+（config/defaults.yaml tools.todo_max_items）。
 """
+
+from bootstrap.state import settings
 
 DEFINITION = {
     "name": "TodoWrite",
@@ -71,8 +74,8 @@ class TodoManager:
             if status == "in_progress":
                 ip += 1
             validated.append({"content": content, "status": status, "activeForm": af})
-        if len(validated) > 20:
-            raise ValueError("Max 20 todos")
+        if len(validated) > settings.tools.todo_max_items:
+            raise ValueError(f"Max {settings.tools.todo_max_items} todos")
         if ip > 1:
             raise ValueError("Only one in_progress allowed")
         self.items = validated

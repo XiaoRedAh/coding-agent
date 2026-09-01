@@ -23,7 +23,7 @@ import re
 from pathlib import Path
 from typing import Literal
 
-from bootstrap.state import WORKDIR
+from bootstrap import state
 
 # ──────────────────────────────────────────────
 #  权限模式
@@ -97,9 +97,10 @@ def is_dangerous_path(file_path: str) -> bool:
 
 def is_outside_workdir(file_path: str) -> bool:
     """检测文件路径是否在工作目录之外"""
+    workdir = state.WORKDIR
     try:
-        resolved = (WORKDIR / file_path).resolve()
-        return not resolved.is_relative_to(WORKDIR.resolve())
+        resolved = (workdir / file_path).resolve()
+        return not resolved.is_relative_to(workdir.resolve())
     except (ValueError, OSError):
         return True
 

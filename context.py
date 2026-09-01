@@ -17,8 +17,8 @@ import subprocess
 from datetime import date
 from pathlib import Path
 
-from bootstrap.state import WORKDIR
 from bootstrap import state
+from bootstrap.state import settings
 
 # 静态/动态分界标记（模板中 "# Environment" 之前是静态区）
 _DYNAMIC_MARKER = "# Environment"
@@ -27,7 +27,7 @@ _DYNAMIC_MARKER = "# Environment"
 def load_claude_md() -> str:
     """从 cwd 向上遍历收集所有 CLAUDE.md 文件内容。"""
     parts = []
-    d = WORKDIR.resolve()
+    d = state.WORKDIR.resolve()
     while True:
         candidate = d / "CLAUDE.md"
         if candidate.exists():
@@ -47,7 +47,10 @@ def load_claude_md() -> str:
 def get_git_context() -> str:
     """采集 Git 上下文信息。"""
     try:
-        opts = {"cwd": WORKDIR, "capture_output": True, "text": True, "timeout": 3}
+        opts = {
+            "cwd": state.WORKDIR, "capture_output": True, "text": True,
+            "timeout": settings.context.git_timeout,
+        }
         branch = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], **opts).stdout.strip()
         log = subprocess.run(["git", "log", "--oneline", "-5"], **opts).stdout.strip()
         status = subprocess.run(["git", "status", "--short"], **opts).stdout.strip()
@@ -98,7 +101,7 @@ def build_system_prompt() -> list[dict]:
 
     dynamic_text = (
         dynamic_template
-        .replace("{{cwd}}", str(WORKDIR))
+        .replace("{{cwd}}", str(state.WORKDIR))
         .replace("{{date}}", today)
         .replace("{{platform}}", platform_str)
         .replace("{{shell}}", shell)

@@ -20,17 +20,18 @@ services/memory.py - 记忆系统
 import re
 from pathlib import Path
 
-from bootstrap.state import MEMORY_DIR
+from bootstrap import state
+from bootstrap.state import settings
 
 # 记忆类型
 MEMORY_TYPES = {"user", "feedback", "project", "reference"}
 
-# MEMORY.md 索引文件限制
-MAX_INDEX_LINES = 200
-MAX_INDEX_BYTES = 25000
+# MEMORY.md 索引文件限制（config/defaults.yaml memory 节）
+MAX_INDEX_LINES = settings.memory.max_index_lines
+MAX_INDEX_BYTES = settings.memory.max_index_bytes
 
 # 单个记忆文件限制
-MAX_MEMORY_FILES = 200
+MAX_MEMORY_FILES = settings.memory.max_memory_files
 
 
 class MemoryManager:
@@ -42,8 +43,9 @@ class MemoryManager:
     - *.md — 具体记忆文件（LLM 按需读取）
     """
 
-    def __init__(self):
-        self.memory_dir = MEMORY_DIR
+    def __init__(self, memory_dir=None):
+        """记忆目录（默认动态读取 state.MEMORY_DIR，支持显式注入便于测试）"""
+        self.memory_dir = memory_dir if memory_dir is not None else state.MEMORY_DIR
 
     def ensure_dir(self):
         """确保记忆目录存在"""

@@ -1,0 +1,101 @@
+# ============================================================
+# XiaoAgent 默认配置（随项目分发）
+#
+# 覆盖方式（优先级从低到高）：
+#   1. 本文件（内置默认）
+#   2. ~/.xiaoagent/config.yaml          （用户全局）
+#   3. {工作目录}/.xiaoagent/config.yaml （项目级）
+#   4. 环境变量 XIAOAGENT__节__键        （如 XIAOAGENT__LOOP__DEFAULT_MAX_TURNS=50）
+#
+# 注意：API Key 等机密仍放在 .env（不入本文件）。
+# ============================================================
+
+# ---------- LLM 模型与调用 ----------
+llm:
+  provider: anthropic            # anthropic | openai（OpenAI 兼容格式）
+  model_id: ""                   # 模型名（通常由 .env 指定）
+  context_window: 200000         # 模型上下文窗口（token）
+  max_output_tokens: 8000        # 单次响应最大输出 token
+  timeout_seconds: 300           # LLM 客户端超时（流式为相邻 chunk 间隔）
+
+# ---------- Agent Loop 保护 ----------
+loop:
+  default_max_turns: 50          # 主循环最大轮次
+  subagent_max_turns: 30         # 子 agent 默认最大轮次
+  coordinator_max_turns: 20      # Coordinator 模式最大轮次
+  max_consecutive_tool_errors: 5 # 同轮内连续工具错误上限
+  max_consecutive_llm_errors: 3  # 跨轮连续 LLM 错误上限
+  coordinator_wait_timeout: 120  # Coordinator 等待 Worker 的超时（秒）
+
+# ---------- 上下文压缩（5 级管道）----------
+compact:
+  # 多级阈值（占有效窗口比例，0~1）
+  budget_threshold: 0.50         # L1 起始：动态缩减工具结果
+  snip_threshold: 0.60           # L2 起始：snip 过时工具结果
+  budget_tight_threshold: 0.70   # 更激进预算的分界
+  autocompact_threshold: 0.85    # L5 触发：全量摘要压缩
+  warning_threshold: 0.82        # 显示上下文告警
+  # L1/L2 参数
+  budget_normal_chars: 30000     # 50-70% 时工具结果字符预算
+  budget_tight_chars: 15000      # >70% 时工具结果字符预算
+  snip_keep_recent: 3            # snip 时保留最近 N 个工具结果
+  # L3 参数
+  microcompact_idle_seconds: 300 # 空闲多久后触发微压缩（秒）
+  # L5 断路器
+  max_autocompact_failures: 3    # 连续压缩失败几次后熔断
+  # 压缩后恢复
+  post_compact_max_files: 5          # 恢复最近读取的文件数
+  post_compact_max_tokens_per_file: 5000
+  post_compact_skills_budget: 25000
+  # 摘要调用本身
+  max_conversation_chars: 80000  # 送入摘要的对话截断长度（字符）
+  summary_max_tokens: 4096       # 摘要生成 max_tokens
+
+# ---------- API 重试策略 ----------
+retry:
+  default_max_retries: 3
+  prompt_too_long_max_retries: 2
+  base_delay_ms: 1000            # 指数退避基础延迟（毫秒）
+  max_delay_ms: 32000            # 单次退避上限
+  jitter_ratio: 0.25             # 退避随机抖动比例
+  rate_limit_short_retry_ms: 20000   # 429 短等待阈值
+  rate_limit_cooldown_ms: 600000     # 429 长冷却（10 分钟）
+  overload_max_retries: 3        # 529 服务器过载专用
+  overload_base_delay_ms: 500
+
+# ---------- MCP 集成 ----------
+mcp:
+  tool_timeout: 120              # MCP 工具调用超时（秒）
+  connect_timeout: 30            # MCP 服务器连接超时（秒）
+
+# ---------- Shell 工具 ----------
+shell:
+  default_timeout: 120           # run_shell 默认超时（秒）
+
+# ---------- 各工具限制 ----------
+tools:
+  max_result_chars: 50000        # 工具结果统一截断长度
+  list_files_max: 200            # list_files 最多返回文件数
+  grep_max_matches: 100          # grep_search 最多返回匹配行数
+  grep_timeout: 10               # grep_search 超时（秒）
+  todo_max_items: 20             # Todo 列表最大条数
+  skill_description_max_chars: 250  # 技能简介截断长度
+
+# ---------- 记忆系统 ----------
+memory:
+  max_index_lines: 200           # MEMORY.md 索引最大行数
+  max_index_bytes: 25000         # MEMORY.md 索引最大字节数
+  max_memory_files: 200          # 记忆文件总数上限
+
+# ---------- 环境上下文采集 ----------
+context:
+  git_timeout: 3                 # git 命令超时（秒）
+
+# ---------- 目录布局 ----------
+paths:
+  project_dir_name: .xiaoagent       # 项目配置目录名
+  tasks_dir_name: tasks
+  transcripts_dir_name: transcripts
+  memory_dir_name: memory
+  settings_file_name: settings.json
+  skills_dir_name: skills            # 工作目录下的技能目录名

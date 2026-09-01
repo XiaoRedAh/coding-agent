@@ -11,6 +11,9 @@ def _mock_response(stop_reason="end_turn", content=None, input_tokens=100, outpu
     resp.content = content or [MagicMock(type="text", text="Done")]
     resp.input_tokens = input_tokens
     resp.output_tokens = output_tokens
+    # is_truncated 是 bool 字段，MagicMock 默认属性为 truthy 会被误判为截断
+    resp.is_truncated = False
+    resp.truncated_text = ""
     return resp
 
 
@@ -170,9 +173,12 @@ class TestAgentLoopNotifications:
     def test_agent_task_notification_injected(self, mock_env):
         mock_state, mock_llm = mock_env
         mock_agent_tasks = MagicMock()
-        mock_agent_tasks.drain.return_value = [
-            {"task_id": "agent-abc", "agent_type": "explore", "status": "completed", "result": "Found 5 TODOs"}
-        ]
+        # drain() 返回 (notifications, in_flight) 元组
+        mock_agent_tasks.drain.return_value = (
+            [{"task_id": "agent-abc", "agent_type": "explore", "status": "completed", "result": "Found 5 TODOs"}],
+            0,
+        )
+        mock_agent_tasks.wait_and_drain.return_value = ([], 0)
         mock_state.agent_tasks = mock_agent_tasks
         mock_llm.chat.return_value = _mock_response()
         from query import agent_loop

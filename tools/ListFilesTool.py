@@ -10,7 +10,8 @@ tools/ListFilesTool.py - 文件列表工具
 import glob as globmod
 import os
 
-from bootstrap.state import WORKDIR
+from bootstrap.state import settings
+from bootstrap import state
 from utils.truncate import truncate_result
 
 DEFINITION = {
@@ -39,7 +40,7 @@ DEFINITION = {
 def handle(pattern: str, path: str = None) -> str:
     """按 glob 模式列出匹配的文件"""
     try:
-        search_dir = path or str(WORKDIR)
+        search_dir = path or str(state.WORKDIR)
         full_pattern = os.path.join(search_dir, pattern)
 
         matches = globmod.glob(full_pattern, recursive=True)
@@ -55,14 +56,15 @@ def handle(pattern: str, path: str = None) -> str:
         rel_files = []
         for f in files:
             try:
-                rel_files.append(os.path.relpath(f, str(WORKDIR)))
+                rel_files.append(os.path.relpath(f, str(state.WORKDIR)))
             except ValueError:
                 rel_files.append(f)
 
         result = "\n".join(rel_files)
-        if len(files) > 200:
-            result += f"\n\n({len(files)} files total, showing first 200)"
-            result = "\n".join(rel_files[:200]) + result.split("\n")[-1]
+        max_files = settings.tools.list_files_max
+        if len(files) > max_files:
+            result += f"\n\n({len(files)} files total, showing first {max_files})"
+            result = "\n".join(rel_files[:max_files]) + result.split("\n")[-1]
 
         return truncate_result(result)
     except Exception as e:

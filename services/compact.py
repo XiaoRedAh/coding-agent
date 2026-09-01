@@ -372,9 +372,11 @@ def auto_compact(messages: list, tracker: TokenTracker) -> list:
 
     # 3. 用 LLM 生成双阶段摘要
     conv_text = json.dumps(messages[:-1] if last_user_msg else messages, default=str)
-    # 截断到 80K 字符以防超出单次请求限制
-    if len(conv_text) > 80000:
-        conv_text = conv_text[:40000] + "\n...[middle truncated]...\n" + conv_text[-40000:]
+    # 截断以防超出单次请求限制（阈值来自 config/defaults.yaml compact 节）
+    max_conv_chars = _state.settings.compact.max_conversation_chars
+    if len(conv_text) > max_conv_chars:
+        half = max_conv_chars // 2
+        conv_text = conv_text[:half] + "\n...[middle truncated]...\n" + conv_text[-half:]
 
     resp = _state.llm.chat(
         system="You are a conversation summarizer. Be concise but preserve important details.",
@@ -382,7 +384,7 @@ def auto_compact(messages: list, tracker: TokenTracker) -> list:
             "role": "user",
             "content": COMPACT_PROMPT + "\n\nConversation to summarize:\n" + conv_text,
         }],
-        max_tokens=4096,
+        max_tokens=_state.settings.compact.summary_max_tokens,
     )
     raw_output = resp.content[0].text
 

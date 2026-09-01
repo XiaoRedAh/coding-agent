@@ -12,7 +12,7 @@ import subprocess
 import threading
 import uuid
 
-from bootstrap.state import WORKDIR
+from bootstrap.state import settings
 from bootstrap import state
 from utils.truncate import truncate_result
 
@@ -50,8 +50,10 @@ DEFINITION = {
 _EXIT1_OK_COMMANDS = {"grep", "diff", "test", "cmp", "comm"}
 
 
-def handle(command: str, timeout: int = 120, run_in_background: bool = False) -> str:
+def handle(command: str, timeout: int = None, run_in_background: bool = False) -> str:
     """执行 shell 命令。run_in_background=True 时在后台线程执行。"""
+    if timeout is None:
+        timeout = settings.shell.default_timeout
     if run_in_background:
         return _run_background(command, timeout)
     return _run_sync(command, timeout)
@@ -61,7 +63,7 @@ def _run_sync(command: str, timeout: int) -> str:
     """同步执行 shell 命令"""
     try:
         r = subprocess.run(
-            command, shell=True, cwd=WORKDIR,
+            command, shell=True, cwd=state.WORKDIR,
             capture_output=True, text=True, timeout=timeout,
         )
         stdout = r.stdout.strip()
@@ -94,7 +96,7 @@ def _run_background(command: str, timeout: int) -> str:
     def _exec():
         try:
             r = subprocess.run(
-                command, shell=True, cwd=WORKDIR,
+                command, shell=True, cwd=state.WORKDIR,
                 capture_output=True, text=True, timeout=timeout,
             )
             output = (r.stdout + r.stderr).strip()[:50000]

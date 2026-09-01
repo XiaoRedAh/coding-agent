@@ -1,67 +1,62 @@
 """
 agents/subagent.py - SubAgent 模式（同步 + 异步）
 
-支持两种执行方式：
-1. 同步（run_subagent）— 阻塞主 Agent 直到完成
-2. 异步（run_subagent_async）— 后台线程执行，通过 AgentTaskQueue 通知主 Agent
+S3 重构后，本文件是 core/loop.py 统一循环之上的薄封装：
+- _run_agent_loop：组装子 Agent 的 LoopSpec（无权限/无压缩/无 UI，仅状态回调）
+  并把 LoopResult 映射为旧的字符串返回约定
+- run_subagent / run_subagent_async：对外入口（签名不变）
 
-异步结果通过独立的 AgentTaskQueue 传递（不依赖 BackgroundManager），
-主 Agent 在 query.py 中通过 state.agent_tasks.drain() 接收。
+行为说明（对比旧实现）：
+- 移除了子循环内的第二层 API 重试 —— services/llm.py 的 chat() 已内置
+  完整重试（分类/退避/jitter），双层重试是历史冗余
+- LLM 超时护栏保留（线程包装，超时值 LoopConfig.LLM_RESPONSE_TIMEOUT）
+- 输出截断续写为统一循环的共享能力（旧子循环忽略截断）
 
 对应 Claude Code 的 runAgent + registerAsyncAgent + LocalAgentTask。
-
-失败处理：
-- LLM 调用使用 api_errors.py 的重试配置
-- 工具执行异常被捕获并作为错误结果返回
-- JSON 解析失败由 llm.py 层处理，SubAgent 无感知
-- max_turns 硬限制防止无限循环
 """
 
 import threading
+import time  # noqa: F401  (保留：外部测试可能 patch agents.subagent.time.sleep)
 import uuid
-import time
-from typing import Callable
 
 from bootstrap import state
 from agents.definitions import get_agent_config, get_filtered_tools
 from utils.truncate import truncate_result
 from services.api_errors import (
-    APIErrorType,
     LoopConfig,
-    RetryConfig,
-    is_retryable_error,
-    classify_api_error,
-    get_error_message,
-    get_retry_delay,
-    LLMError,
-    APIRetryExhaustedError,
+    RetryConfig,  # noqa: F401  (保留：外部测试可能 patch agents.subagent.RetryConfig)
 )
+from core.loop import AgentLoop, LoopSpec, LoopHooks
 
 
-def _chat_with_timeout(system_prompt: str, messages: list, tool_defs: list, agent_type: str):
-    """给子代理的 LLM 调用增加超时护栏，避免单次调用无限卡住。"""
-    result_holder = {}
-    error_holder = {}
+class _SubAgentHooks(LoopHooks):
+    """子 Agent 的循环钩子：仅工具执行与状态回调。"""
 
-    def _target():
+    def __init__(self, tool_handlers: dict, status_callback=None):
+        self.tool_handlers = tool_handlers
+        self.status_callback = status_callback
+
+    def _status(self, msg: str):
+        if self.status_callback:
+            self.status_callback(msg)
+
+    def on_llm_start(self, ctx):
+        self._status(f"turn {ctx.turn_count}/{ctx.max_turns}: waiting llm")
+
+    def execute_tool(self, ctx, block) -> str:
+        self._status(f"turn {ctx.turn_count}/{ctx.max_turns}: tool {block.name}")
+        handler = self.tool_handlers.get(block.name)
+        block_input = block.input
+
+        # llm.py 层注入的 JSON 解析错误标记
+        if isinstance(block_input, dict) and "_json_parse_error" in block_input:
+            return f"Error: JSON parse failed - {block_input['_json_parse_error']}"
+        if not handler:
+            return f"Unknown tool: {block.name}"
         try:
-            result_holder["resp"] = state.llm.chat(system_prompt, messages, tool_defs)
-        except Exception as exc:  # pragma: no cover - 防御分支
-            error_holder["error"] = exc
-
-    thread = threading.Thread(target=_target, daemon=True)
-    thread.start()
-    thread.join(timeout=LoopConfig.LLM_RESPONSE_TIMEOUT)
-
-    if thread.is_alive():
-        raise LLMError(
-            f"LLM call timed out after {LoopConfig.LLM_RESPONSE_TIMEOUT}s",
-            APIErrorType.TIMEOUT,
-        )
-
-    if "error" in error_holder:
-        raise error_holder["error"]
-    return result_holder.get("resp")
+            return truncate_result(str(handler(**block_input)))
+        except Exception as e:
+            return f"Error: {e}"
 
 
 def _run_agent_loop(
@@ -71,150 +66,46 @@ def _run_agent_loop(
     tool_handlers: dict,
     max_turns: int,
     agent_type: str = "general",
-    status_callback: Callable[[str], None] | None = None,
+    status_callback=None,
 ) -> str:
     """
     子 Agent 的通用循环：LLM 调用 → 工具执行 → 返回最终文本。
 
-    失败处理：
-    - LLM 调用失败时最多重试 2 次（指数退避）
-    - 工具执行异常被捕获，返回错误消息
-    - 达到 max_turns 时强制退出
-    - JSON 解析错误由 llm.py 层修复，不传播到此处
+    （统一循环的薄封装，返回字符串约定与旧实现完全一致）
     """
-    resp = None
-    consecutive_llm_errors = 0
+    hooks = _SubAgentHooks(tool_handlers, status_callback)
+    spec = LoopSpec(
+        system_prompt=system_prompt,
+        tool_defs=tool_defs,
+        tool_handlers=tool_handlers,
+        max_turns=max_turns,
+        max_consecutive_tool_errors=LoopConfig.MAX_CONSECUTIVE_TOOL_ERRORS,
+        max_consecutive_llm_errors=LoopConfig.MAX_CONSECUTIVE_LLM_ERRORS,
+        llm_timeout=LoopConfig.LLM_RESPONSE_TIMEOUT,
+        stream=False,
+    )
 
-    for turn in range(max_turns):
-        if status_callback:
-            status_callback(f"turn {turn + 1}/{max_turns}: waiting llm")
+    loop = AgentLoop(state.llm, spec, hooks)
+    result = loop.run(messages)
 
-        # 每轮必须重置，避免失败时误用上一轮 resp 导致循环异常。
-        resp = None
-        # ── LLM 调用（带重试）──
-        last_error = None
-        retry_count = 0
+    # ── 映射为旧的字符串返回约定 ──
+    if result.stop_reason == "tool_errors":
+        return f"(SubAgent stopped: {result.error_count} tool errors in one turn)"
+    if result.stop_reason == "llm_errors":
+        return f"(SubAgent stopped after {result.error_count} consecutive LLM errors)"
+    if result.last_response is None:
+        return "(subagent failed)"
 
-        while retry_count <= RetryConfig.DEFAULT_MAX_RETRIES:
-            try:
-                resp = _chat_with_timeout(system_prompt, messages, tool_defs, agent_type)
-                break  # 成功，跳出重试循环
-            except (LLMError, APIRetryExhaustedError) as e:
-                last_error = e
-                error_type = getattr(e, "error_type", None)
-
-                if error_type and not is_retryable_error(error_type):
-                    # 不可重试错误
-                    print(f"\033[31m  [Worker:{agent_type}] LLM 错误 (不可重试): {e}\033[0m")
-                    consecutive_llm_errors += 1
-                    break
-
-                if retry_count >= RetryConfig.DEFAULT_MAX_RETRIES:
-                    # 重试耗尽
-                    print(f"\033[31m  [Worker:{agent_type}] LLM 错误 (重试耗尽): {e}\033[0m")
-                    consecutive_llm_errors += 1
-                    break
-
-                retry_count += 1
-                print(f"\033[33m  [Worker:{agent_type}] LLM 重试 {retry_count}/{RetryConfig.DEFAULT_MAX_RETRIES}...\033[0m")
-                if status_callback:
-                    status_callback(f"turn {turn + 1}/{max_turns}: llm retry {retry_count}")
-                time.sleep(0.5)  # 重试前短暂等待
-            except Exception as e:
-                # 非 LLM 错误（如网络异常）
-                print(f"\033[31m  [Worker:{agent_type}] 意外错误: {e}\033[0m")
-                last_error = e
-                consecutive_llm_errors += 1
-                break
-
-        # 重试后仍然失败
-        if resp is None:
-            if consecutive_llm_errors >= LoopConfig.MAX_CONSECUTIVE_LLM_ERRORS:
-                return f"(SubAgent stopped after {consecutive_llm_errors} consecutive LLM errors)"
-            # 注入错误消息，继续尝试下一轮
-            error_text = str(last_error)[:200] if last_error else "Unknown error"
-            messages.append({
-                "role": "user",
-                "content": f"<error>LLM call failed: {error_text}</error>"
-            })
-            continue
-
-        # 成功响应，重置错误计数
-        consecutive_llm_errors = 0
-        messages.append({"role": "assistant", "content": resp.content})
-
-        if resp.stop_reason != "tool_use":
-            if status_callback:
-                status_callback(f"turn {turn + 1}/{max_turns}: finalizing")
-            break
-
-        # ── 工具执行 ──
-        results = []
-        consecutive_tool_errors = 0
-
-        for block in resp.content:
-            if block.type == "tool_use":
-                if status_callback:
-                    status_callback(f"turn {turn + 1}/{max_turns}: tool {block.name}")
-                handler = tool_handlers.get(block.name)
-                tool_failed = False
-
-                try:
-                    # 检查是否有 JSON 解析错误（由 llm.py 注入）
-                    block_input = block.input
-                    if isinstance(block_input, dict) and "_json_parse_error" in block_input:
-                        output = f"Error: JSON parse failed - {block_input['_json_parse_error']}"
-                        tool_failed = True
-                    elif handler:
-                        output = str(handler(**block_input))
-                    else:
-                        output = f"Unknown tool: {block.name}"
-                        tool_failed = True
-                except Exception as e:
-                    output = f"Error: {e}"
-                    tool_failed = True
-
-                output_str = str(output)
-
-                # 检查输出中是否有错误标记
-                if output_str.startswith("Error:") or output_str.startswith("<tool_use_error>"):
-                    tool_failed = True
-
-                # 每个工具调用最多记一次失败，避免重复计数导致提前停止
-                if tool_failed:
-                    consecutive_tool_errors += 1
-
-                results.append({
-                    "type": "tool_result",
-                    "tool_use_id": block.id,
-                    "content": truncate_result(output),
-                })
-
-                # 连续工具错误过多，提前退出
-                if consecutive_tool_errors >= LoopConfig.MAX_CONSECUTIVE_TOOL_ERRORS:
-                    print(f"\033[31m  [Worker:{agent_type}] 工具错误过多 ({consecutive_tool_errors}), 停止\033[0m")
-                    return f"(SubAgent stopped: {consecutive_tool_errors} tool errors in one turn)"
-
-        messages.append({"role": "user", "content": results})
-
-    if resp:
-        if status_callback:
-            status_callback("done")
-        text_parts = []
-        for b in resp.content:
-            if hasattr(b, "text") and b.text:
-                text_parts.append(b.text)
-            elif hasattr(b, "type") and b.type == "text":
-                text_parts.append(str(b.text) if b.text else "")
-        return "".join(text_parts) or "(no output)"
-    return "(subagent failed)"
+    if status_callback:
+        status_callback("done")
+    return result.final_text or "(no output)"
 
 
 def run_subagent(
     prompt: str,
     agent_type: str = "general",
     description: str = "",
-    status_callback: Callable[[str], None] | None = None,
+    status_callback=None,
 ) -> str:
     """同步子代理：阻塞主 Agent 直到完成。"""
     config = get_agent_config(agent_type)

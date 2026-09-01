@@ -11,7 +11,7 @@ import threading
 import uuid
 from queue import Queue
 
-from bootstrap.state import WORKDIR
+from bootstrap import state
 
 
 class BackgroundManager:
@@ -35,7 +35,7 @@ class BackgroundManager:
         """后台任务执行函数（运行在独立线程中）"""
         try:
             r = subprocess.run(
-                command, shell=True, cwd=WORKDIR,
+                command, shell=True, cwd=state.WORKDIR,
                 capture_output=True, text=True, timeout=timeout,
             )
             output = (r.stdout + r.stderr).strip()[:50000]

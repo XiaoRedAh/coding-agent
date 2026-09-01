@@ -38,7 +38,10 @@ class TestTokenTracker:
         est = t.estimate_current_tokens()
         assert est > 3000
 
-    def test_get_utilization(self):
+    def test_get_utilization(self, monkeypatch):
+        # EFFECTIVE_WINDOW 受 .env 的 MODEL_CONTEXT_WINDOW 影响，
+        # 显式固定窗口值保证测试与运行环境无关
+        monkeypatch.setattr("services.compact.EFFECTIVE_WINDOW", 180000)
         t = TokenTracker()
         t.update_from_response(self._make_response(90000, 0))
         util = t.get_utilization()

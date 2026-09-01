@@ -60,18 +60,26 @@ class LLMAdapter:
     @staticmethod
     def from_env() -> "LLMAdapter":
         """从环境变量自动创建适配器。"""
-        provider = os.getenv("LLM_PROVIDER", "anthropic").lower()
+        from bootstrap.state import settings
+        provider = os.getenv("LLM_PROVIDER", settings.llm.provider).lower()
         model = os.environ["MODEL_ID"]
+        # 客户端级超时护栏：防止停滞的连接/流无限挂起主循环。
+        # 对流式调用，该超时作用于相邻 chunk 的间隔（读超时），而非总时长。
+        timeout_s = settings.llm.timeout_seconds
 
         if provider == "openai":
             from openai import OpenAI
             client = OpenAI(
                 base_url=os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1"),
                 api_key=os.getenv("OPENAI_API_KEY"),
+                timeout=timeout_s,
             )
         else:
             from anthropic import Anthropic
-            client = Anthropic(base_url=os.getenv("ANTHROPIC_BASE_URL"))
+            client = Anthropic(
+                base_url=os.getenv("ANTHROPIC_BASE_URL"),
+                timeout=timeout_s,
+            )
 
         return LLMAdapter(provider, client, model)
 

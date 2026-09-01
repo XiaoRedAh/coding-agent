@@ -7,7 +7,10 @@ utils/truncate.py - 工具结果截断
 对应 Claude Code 的 maxResultSizeChars + 截断机制。
 """
 
-MAX_RESULT_CHARS = 50000
+from bootstrap.state import settings
+
+# 截断阈值（config/defaults.yaml tools.max_result_chars）
+MAX_RESULT_CHARS = settings.tools.max_result_chars
 
 
 def truncate_result(result: str) -> str:

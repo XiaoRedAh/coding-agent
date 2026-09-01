@@ -39,7 +39,8 @@ class TestCoordinatorConfig:
     def test_has_system_prompt(self):
         config = get_coordinator_config()
         assert "system_prompt" in config
-        assert "Coordinator" in config["system_prompt"]
+        # 当前提示词定位为 Orchestrator（项目管理者）
+        assert "Orchestrator" in config["system_prompt"]
 
     def test_has_allowed_tools(self):
         config = get_coordinator_config()
@@ -48,20 +49,21 @@ class TestCoordinatorConfig:
     def test_agent_in_allowed(self):
         assert "agent" in COORDINATOR_ALLOWED_TOOLS
 
-    def test_no_file_tools(self):
-        """Coordinator should NOT have file operation tools."""
-        assert "read_file" not in COORDINATOR_ALLOWED_TOOLS
+    def test_no_write_tools(self):
+        """Coordinator 不应有写文件工具（不直接修改文件，全部委托 Worker）。"""
         assert "write_file" not in COORDINATOR_ALLOWED_TOOLS
         assert "edit_file" not in COORDINATOR_ALLOWED_TOOLS
-        assert "run_shell" not in COORDINATOR_ALLOWED_TOOLS
 
-    def test_has_communication_tools(self):
-        assert "send_message" in COORDINATOR_ALLOWED_TOOLS
-        assert "read_inbox" in COORDINATOR_ALLOWED_TOOLS
-        assert "broadcast" in COORDINATOR_ALLOWED_TOOLS
+    def test_has_readonly_investigation_tools(self):
+        """Coordinator 保留只读调研工具（用于规划前的分析）。"""
+        assert "read_file" in COORDINATOR_ALLOWED_TOOLS
+        assert "list_files" in COORDINATOR_ALLOWED_TOOLS
+        assert "grep_search" in COORDINATOR_ALLOWED_TOOLS
 
     def test_prompt_mentions_rules(self):
         config = get_coordinator_config()
         prompt = config["system_prompt"]
-        assert "CANNOT modify files" in prompt
-        assert "MUST delegate" in prompt
+        # 当前提示词的关键行为规则
+        assert "delegates to Workers" in prompt  # 必须委托
+        assert "independent" in prompt.lower()  # 子任务必须独立
+        assert "PARALLEL" in prompt  # 并行执行指引
