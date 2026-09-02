@@ -54,11 +54,16 @@ def maybe_run_workflow(messages: list[dict]) -> tuple[bool, str]:
         return True, "Workflow requirement cannot be empty."
 
     # 进入 workflow 引擎执行单次 SOP 流程
+    # （loader/配置错误兜底：坏 workflow id 或坏 YAML 返回错误提示，
+    #  不向上抛异常炸穿主循环）
     print(f"\033[36m[Workflow]\033[0m start id={workflow_id}", flush=True)
     print(f"\033[36m[Workflow]\033[0m requirement: {requirement[:120]}", flush=True)
     started_at = time.time()
-    engine = WorkflowEngine()
-    result = engine.run(requirement=requirement, workflow_id=workflow_id)
+    try:
+        engine = WorkflowEngine()
+        result = engine.run(requirement=requirement, workflow_id=workflow_id)
+    except Exception as e:
+        return True, f"[Workflow] failed to load or run '{workflow_id}': {e}"
     elapsed = time.time() - started_at
     print(f"\033[36m[Workflow]\033[0m finished in {elapsed:.1f}s", flush=True)
 

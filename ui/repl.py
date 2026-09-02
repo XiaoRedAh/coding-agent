@@ -169,5 +169,13 @@ def run_repl():
         msg = {"role": "user", "content": query}
         history.append(msg)
         tracker.track_new_message(msg)
-        tracker, breaker = agent_loop(history, tracker, breaker)
+        # 全局兜底：任何漏网异常（workflow 配置错误、未预见的 bug 等）
+        # 只终结本次请求，会话历史保留，不崩溃 REPL
+        try:
+            tracker, breaker = agent_loop(history, tracker, breaker)
+        except KeyboardInterrupt:
+            print("\n\033[33m[Interrupted] You can continue the conversation.\033[0m")
+        except Exception as e:
+            print(f"\n\033[31m[Agent error] {type(e).__name__}: {e}\033[0m")
+            print("\033[33m[Session preserved. You can continue the conversation.\033[0m")
         print()

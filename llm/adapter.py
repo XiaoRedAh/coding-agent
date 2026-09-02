@@ -110,8 +110,15 @@ class LLMAdapter:
                 import traceback
                 last_error = e
                 error_type = classify_api_error(e)
+                # 终端只留一行；完整 traceback 进 trace（可观测性），不污染流式输出
                 print(f"\033[31m[llm.chat] EXCEPTION in attempt {attempt}: type={type(e).__name__}, error_type={error_type}, msg={e}\033[0m", flush=True)
-                print(f"\033[31m[llm.chat] Traceback: {traceback.format_exc()[-800:]}\033[0m", flush=True)
+                try:
+                    from services.tracing import trace
+                    trace("llm_traceback", attempt=attempt,
+                          error_type=str(error_type),
+                          traceback=traceback.format_exc()[-2000:])
+                except Exception:
+                    pass
 
                 if not is_retryable_error(error_type):
                     raise LLMError(get_error_message(error_type), error_type) from e

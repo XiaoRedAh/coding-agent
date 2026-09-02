@@ -32,7 +32,7 @@ class _FakeLLM:
         return item
 
 
-def _text_resp(text="done"):
+def _text_resp(text="task done"):
     return SimpleNamespace(
         stop_reason="end_turn",
         content=[SimpleNamespace(type="text", text=text)],

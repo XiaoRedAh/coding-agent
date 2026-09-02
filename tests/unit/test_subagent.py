@@ -32,7 +32,7 @@ class _FakeLLM:
         return item
 
 
-def _text_resp(text="done"):
+def _text_resp(text="task done"):
     return SimpleNamespace(
         stop_reason="end_turn",
         content=[SimpleNamespace(type="text", text=text)],
@@ -252,11 +252,12 @@ class TestBoundaries:
         assert llm.call_count == 3
 
     def test_empty_content_returns_no_output(self, monkeypatch):
-        """content 无任何文本时应返回占位符。"""
-        resp = SimpleNamespace(stop_reason="end_turn", content=[])
-        llm = _FakeLLM([resp])
+        """content 无任何文本：注入 <error> 续跑一次，仍空则返回占位符。"""
+        empty = SimpleNamespace(stop_reason="end_turn", content=[])
+        llm = _FakeLLM([empty, empty])  # 重试一次后仍空 → 放弃
         monkeypatch.setattr(state, "llm", llm)
         assert _run(llm) == "(no output)"
+        assert llm.call_count == 2
 
     def test_retry_exhausted_returns_failure(self, monkeypatch):
         """重试耗尽且未达连续错误阈值时，注入错误消息继续（下一轮再失败）。"""

@@ -29,6 +29,7 @@ from engine.errors import (
     APIErrorType,
     LLMError,
     APIRetryExhaustedError,
+    LoopConfig,
 )
 
 
@@ -115,6 +116,11 @@ class LoopHooks:
 # ──────────────────────────────────────────────
 #  工具函数
 # ──────────────────────────────────────────────
+
+# 空响应（静默失败）的最大重试次数：注入 <error> 续跑一次，
+# 仍为空则放弃（防止空响应死循环）
+_MAX_EMPTY_RETRIES = 1
+
 
 def is_error_output(output_str: str) -> bool:
     """判断工具输出是否为错误（两套旧实现嗅探规则的并集）。"""
@@ -210,6 +216,7 @@ class AgentLoop:
         hooks = self.hooks
         turn_count = 0
         consecutive_llm_errors = 0
+        consecutive_empty = 0   # 空响应连续次数（静默失败检测）
         resp = None
 
         def _result(stop_reason, error_count=0, final_text=""):
@@ -315,8 +322,28 @@ class AgentLoop:
                 hooks.maybe_compact(ctx, messages)
                 continue
 
+            # ── 空响应检测（静默失败）：LLM 既没说话也没调工具 ──
+            final_text = extract_text(resp)
+            if (len(final_text.strip()) < LoopConfig.MIN_OUTPUT_LENGTH
+                    and consecutive_empty < _MAX_EMPTY_RETRIES):
+                consecutive_empty += 1
+                empty_msg = {
+                    "role": "user",
+                    "content": (
+                        "<error>Your previous response was empty. "
+                        "Please respond to the user's request.</error>"
+                    ),
+                }
+                messages.append(empty_msg)
+                if tracker:
+                    tracker.track_new_message(empty_msg)
+                continue
+            if consecutive_empty >= _MAX_EMPTY_RETRIES and len(final_text.strip()) < LoopConfig.MIN_OUTPUT_LENGTH:
+                # 重试后仍为空：放弃续跑，正常结束（final_text 为空由调用方呈现）
+                return _result("end_turn", final_text=final_text)
+
             # ── 正常结束 ──
-            return _result("end_turn", final_text=extract_text(resp))
+            return _result("end_turn", final_text=final_text)
 
     def _inject_continuation(self, ctx, messages, tracker, resp, after_tools: bool):
         """注入截断续写提示消息。"""

@@ -1,5 +1,5 @@
 """
-services/api_errors.py - API 错误常量与分类
+engine/errors.py - API 错误常量与分类
 
 集中管理所有 API 错误相关的常量、枚举、异常类和分类逻辑。
 所有 LLM 调用相关的错误码、重试策略、用户提示信息都在此定义。
@@ -149,11 +149,6 @@ class RetryConfig:
     OVERLOAD_MAX_RETRIES = _settings.retry.overload_max_retries          # 服务器过载最大重试次数
     OVERLOAD_BASE_DELAY_MS = _settings.retry.overload_base_delay_ms      # 更短的初始延迟
 
-    # 持久会话模式（无人值守）
-    PERSISTENT_MAX_BACKOFF_MS = 300000  # 5 分钟
-    PERSISTENT_RESET_CAP_MS = 21600000  # 6 小时
-    HEARTBEAT_INTERVAL_MS = 30000       # 30 秒
-
 
 # ──────────────────────────────────────────────
 #  Agent Loop 配置常量（值来自 config/ 分层配置）
@@ -172,7 +167,9 @@ class LoopConfig:
     MAX_CONSECUTIVE_LLM_ERRORS = _settings.loop.max_consecutive_llm_errors    # 连续 LLM 调用错误阈值
 
     # 最小输出检测
-    MIN_OUTPUT_LENGTH = 5           # 最小有效输出长度（用于检测静默失败）
+    # 静默失败 = end_turn 且文本完全为空（0 字符 < 1）。
+    # 短但非空的响应（如 "ok"）是合法输出，不触发重试。
+    MIN_OUTPUT_LENGTH = 1
 
     # 超时配置
     LLM_RESPONSE_TIMEOUT = _settings.llm.timeout_seconds  # LLM 响应超时（秒）

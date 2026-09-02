@@ -8,7 +8,7 @@ def _mock_response(stop_reason="end_turn", content=None, input_tokens=100, outpu
     """Create a mock LLMResponse."""
     resp = MagicMock()
     resp.stop_reason = stop_reason
-    resp.content = content or [MagicMock(type="text", text="Done")]
+    resp.content = content or [MagicMock(type="text", text="Done working")]
     resp.input_tokens = input_tokens
     resp.output_tokens = output_tokens
     # is_truncated 是 bool 字段，MagicMock 默认属性为 truthy 会被误判为截断
