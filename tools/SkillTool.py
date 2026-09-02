@@ -15,8 +15,9 @@ DEFINITION = {
     "name": "load_skill",
     "description": (
         "Load specialized knowledge/best-practices by name. "
-        "Available skills are listed in system-reminder messages. "
-        "Use this when you need domain-specific guidance for a task."
+        "Available skills are listed in the system prompt under "
+        "'Available skills'. Use this when you need domain-specific "
+        "guidance for a task."
     ),
     "input_schema": {
         "type": "object",

@@ -23,6 +23,7 @@
 - **语言**: Python 3.10+
 - **LLM SDK**: Anthropic SDK（Claude 模型）、OpenAI SDK（OpenRouter / DeepSeek / Qwen 等兼容 API）
 - **协议**: MCP（Model Context Protocol）stdio JSON-RPC
+- **技能**: 兼容 [Agent Skills](https://agentskills.io/specification) 开放规范（anthropics/skills 等开源生态可直接安装）
 - **并发**: threading（后台 Shell、异步 SubAgent、心跳日志）
 - **配置**: YAML（工作流定义）+ JSON（设置、任务）+ Markdown + YAML frontmatter（记忆/技能）
 - **持久化**: JSON 文件 + Markdown 文件
@@ -91,8 +92,8 @@ coding agent/
 │   ├── tasks.py                   # 持久化任务管理器
 │   └── background.py              # 后台 Shell 管理器
 │
-├── skills/                        # 【技能系统】
-│   ├── loader.py                  # 技能文件加载器（渐进式披露，参数替换）
+├── skills/                        # 【技能系统】兼容 Agent Skills 开放规范（agentskills.io）
+│   ├── loader.py                  # ★ 技能加载器（渐进式披露 + 规范校验 + 宽容解析）
 │   └── commit/SKILL.md            # 示例技能：Git Conventional Commits
 │
 ├── workflows/                     # 【SOP 工作流】MetaGPT-lite 事件驱动引擎
@@ -105,6 +106,7 @@ coding agent/
 │   ├── base.md                    # ★ 主 System Prompt 模板（动静分离，Prompt Cache 友好）
 │   ├── coordinator.md             # Coordinator（Orchestrator）模式提示词
 │   ├── fragments/memory.md        # ★ 记忆指令片段（含主动写入引导：任务完成/偏好/决策/纠正）
+│   ├── fragments/skills.md        # 技能系统说明（安装目录约定 + 触发方式）
 │   ├── workflow/                  # 工作流角色 Prompt 模板（analyst/engineer/tester.md）
 │   └── loader.py                  # ★ 提示词资产加载器（三级覆盖 + 新增资产）
 │

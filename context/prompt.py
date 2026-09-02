@@ -115,6 +115,10 @@ def build_system_prompt() -> list[dict]:
     if state.mcp and state.mcp.server_count > 0:
         dynamic_text += "\n" + state.mcp.get_instructions()
 
+    # Skills 使用说明（安装约定 + 触发方式；技能列表已在 {{skills_info}} 注入）
+    if state.skills and state.skills.skills:
+        dynamic_text += "\n" + _default_prompt_loader().load("fragments/skills.md")
+
     # Memory
     if state.memory:
         dynamic_text += "\n" + state.memory.get_prompt_section()

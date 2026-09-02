@@ -25,6 +25,23 @@ from agents.session import agent_loop
 from agents.coordinator import is_coordinator_mode
 from services.tracing import get_tracer
 
+# REPL 内置斜杠命令（不与技能名冲突时优先按技能处理）
+_BUILT_IN_SLASH = {"compact", "stats", "tasks", "skills", "edit"}
+
+
+def _print_skills():
+    """列出全部已注册技能（/skills 命令）。"""
+    skills = getattr(state, "skills", None)
+    if not skills or not skills.skills:
+        print("(no skills installed)")
+        return
+    print("Installed skills (invoke with /<name> [args]):")
+    for name, skill in skills.skills.items():
+        desc = skill["meta"].get("description", "-")
+        if len(desc) > 80:
+            desc = desc[:77] + "..."
+        print(f"  /{name}: {desc}")
+
 
 def _read_multiline() -> str:
     """
@@ -100,7 +117,7 @@ def run_repl():
     if is_coordinator_mode():
         print("[Coordinator mode] Use agent tool to delegate work.")
 
-    print("\033[90mTips: /edit for multi-line editor | /compact to compress | /stats for session stats | q to quit\033[0m")
+    print("\033[90mTips: /skills to list skills | /<skill> to invoke a skill | /stats for session stats | q to quit\033[0m")
 
     while True:
         query = _read_multiline()
@@ -121,11 +138,31 @@ def run_repl():
         if stripped == "/tasks":
             print(state.task_mgr.list_all())
             continue
+        if stripped == "/skills":
+            _print_skills()
+            continue
         if stripped == "/edit":
             query = _open_editor()
             if not query:
                 continue
             print(f"\033[90m  (submitted {len(query)} chars)\033[0m")
+
+        # 斜杠技能触发：/技能名 或 /技能名 参数...
+        # （用户侧直达，不依赖 LLM 自主调用 load_skill）
+        if stripped.startswith("/") and state.skills:
+            parts = stripped[1:].split(None, 1)
+            skill_name = parts[0]
+            if skill_name in state.skills.skills:
+                skill_args = parts[1] if len(parts) > 1 else ""
+                content = state.skills.load(skill_name, skill_args)
+                if content.startswith("Error:"):
+                    print(f"\033[31m{content}\033[0m")
+                    continue
+                print(f"\033[90m[skill] {skill_name} loaded, executing...\033[0m")
+                query = content
+            elif skill_name in _BUILT_IN_SLASH:
+                pass  # 内置命令已在上方处理，这里不会到达（防御）
+            # 未知斜杠命令：不拦截，作为普通输入交给 LLM（避免误伤 /xxx 写法）
 
         msg = {"role": "user", "content": query}
         history.append(msg)

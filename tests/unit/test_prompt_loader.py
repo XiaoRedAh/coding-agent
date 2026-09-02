@@ -159,6 +159,62 @@ class TestMemoryFragment:
 
 
 # ──────────────────────────────────────────────
+#  E. Skills 片段（安装约定注入）
+# ──────────────────────────────────────────────
+
+class TestSkillsFragment:
+    def test_fragment_contains_install_convention(self, tmp_workdir, monkeypatch):
+        """技能系统启用时，安装约定（正确目录 + 格式要求）必须注入 prompt。"""
+        from context.prompt import build_system_prompt
+        from skills.loader import SkillLoader
+
+        skill_dir = tmp_workdir / "skills" / "demo-skill"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text(
+            "---\nname: demo-skill\ndescription: a demo\n---\nBody",
+            encoding="utf-8")
+        loader = SkillLoader(tmp_workdir / "skills")
+        monkeypatch.setattr(st, "skills", loader)
+        monkeypatch.setattr(st, "memory", None)
+
+        blocks = build_system_prompt()
+        full = "\n".join(b["text"] for b in blocks)
+        assert "Skill System" in full
+        assert ".xiaoagent/skills/" in full       # 用户级安装路径
+        assert "SKILL.md" in full                  # 格式约定
+        assert "agentskills.io" in full            # 来源指引
+
+    def test_fragment_not_injected_without_skills(self, tmp_workdir, monkeypatch):
+        """技能系统未启用/无技能时不注入（不浪费 token）。"""
+        from context.prompt import build_system_prompt
+
+        monkeypatch.setattr(st, "skills", None)
+        monkeypatch.setattr(st, "memory", None)
+
+        blocks = build_system_prompt()
+        full = "\n".join(b["text"] for b in blocks)
+        assert "Skill System" not in full
+
+    def test_fragment_not_in_static_cache_block(self, tmp_workdir, monkeypatch):
+        """技能片段在动态块（与技能列表同区，不破坏静态区缓存）。"""
+        from context.prompt import build_system_prompt
+        from skills.loader import SkillLoader
+
+        skill_dir = tmp_workdir / "skills" / "demo-skill"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text(
+            "---\nname: demo-skill\ndescription: a demo\n---\nBody",
+            encoding="utf-8")
+        loader = SkillLoader(tmp_workdir / "skills")
+        monkeypatch.setattr(st, "skills", loader)
+        monkeypatch.setattr(st, "memory", None)
+
+        blocks = build_system_prompt()
+        assert "Skill System" not in blocks[0]["text"]
+        assert "Skill System" in blocks[1]["text"]
+
+
+# ──────────────────────────────────────────────
 #  D. 工作流模板接线
 # ──────────────────────────────────────────────
 
