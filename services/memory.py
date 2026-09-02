@@ -20,6 +20,7 @@ services/memory.py - 记忆系统
 import re
 from pathlib import Path
 
+from prompts.loader import load_prompt
 from runtime import state
 from runtime.state import settings
 
@@ -82,75 +83,17 @@ class MemoryManager:
         构建记忆系统的 System Prompt 片段。
 
         包含：
-        1. 记忆系统使用说明（四种类型、如何保存、何时访问、不存什么）
+        1. 记忆系统使用说明（模板 prompts/fragments/memory.md，可被用户/项目级覆盖，
+           含第一层"主动写入引导"——任务完成/用户偏好/重要决策时必须写记忆）
         2. MEMORY.md 索引内容
         """
         self.ensure_dir()
-        memory_dir_str = str(self.memory_dir)
-        index_content = self.get_index_content()
-
-        instructions = f"""# auto memory
-
-You have a persistent, file-based memory system at `{memory_dir_str}`.
-
-You should build up this memory system over time so that future conversations can have a complete picture of who the user is, how they'd like to collaborate with you, and the context behind the work.
-
-If the user explicitly asks you to remember something, save it immediately. If they ask you to forget something, find and remove the relevant entry.
-
-## Memory Types
-
-- **user**: Information about the user's role, goals, preferences, knowledge level
-  - When to save: When you learn details about the user
-  - Example: "user is a data scientist, currently focused on logging"
-
-- **feedback**: Guidance the user has given about how to approach work
-  - When to save: When the user corrects your approach OR confirms a good approach
-  - Structure: rule → **Why:** reason → **How to apply:** guidance
-  - Example: "don't mock the database in tests — prior incident with mock/prod divergence"
-
-- **project**: Information about ongoing work, goals, decisions NOT derivable from code/git
-  - When to save: When you learn who is doing what, why, or by when
-  - Structure: fact/decision → **Why:** motivation → **How to apply:** impact
-  - Example: "merge freeze begins 2026-03-05 for mobile release cut"
-
-- **reference**: Pointers to external systems and their purpose
-  - When to save: When you learn about resources in external systems
-  - Example: "pipeline bugs tracked in Linear project INGEST"
-
-## How to Save Memories
-
-Saving a memory is a two-step process:
-
-**Step 1**: Write the memory file (e.g., `user_role.md`) using `write_file`:
-```markdown
----
-name: {{name}}
-description: {{one-line description}}
-type: {{user|feedback|project|reference}}
----
-{{content}}
-```
-
-**Step 2**: Add a one-line entry to `MEMORY.md`:
-```
-- [Title](file.md) — one-line hook
-```
-
-## What NOT to Save
-
-- Code patterns, architecture, file paths (derivable from code)
-- Git history (use `git log`)
-- Anything already in CLAUDE.md
-- Current conversation details (use tasks instead)
-- Debugging solutions (the fix is in the code)
-
-## When to Access Memories
-
-- When memories seem relevant to the current task
-- When the user explicitly asks to recall something
-- If unsure, check MEMORY.md index first"""
+        # 模板占位符替换：{{memory_dir}} → 实际记忆目录绝对路径
+        instructions = load_prompt("fragments/memory.md").replace(
+            "{{memory_dir}}", str(self.memory_dir))
 
         # 追加 MEMORY.md 索引内容
+        index_content = self.get_index_content()
         if index_content:
             instructions += f"\n\n## Current Memory Index\n\n{index_content}"
         else:
@@ -185,9 +128,16 @@ type: {{user|feedback|project|reference}}
         return memories
 
     def is_memory_path(self, file_path: str) -> bool:
-        """检查文件路径是否在记忆目录内（用于权限白名单）"""
+        """检查文件路径是否在记忆目录内（用于权限白名单）
+
+        相对路径基于 WORKDIR 解析（与 utils.path.safe_path 语义一致，
+        而非进程 cwd——两者在正常启动时相等，但语义上应以 WORKDIR 为准）。
+        """
         try:
-            resolved = Path(file_path).resolve()
+            p = Path(file_path)
+            if not p.is_absolute():
+                p = state.WORKDIR / p
+            resolved = p.resolve()
             return resolved.is_relative_to(self.memory_dir.resolve())
         except (ValueError, OSError):
             return False

@@ -15,8 +15,8 @@ Prompt Cache 机制：
 import os
 import subprocess
 from datetime import date
-from pathlib import Path
 
+from prompts.loader import default_loader as _default_prompt_loader
 from runtime import state
 from runtime.state import settings
 
@@ -78,8 +78,8 @@ def build_system_prompt() -> list[dict]:
     Returns:
         [{"type": "text", "text": ..., "cache_control": ...}, {"type": "text", "text": ...}]
     """
-    template_path = Path(__file__).parent.parent / "system-prompt.md"  # 根目录模板
-    template = template_path.read_text(encoding="utf-8")
+    # P1: 主模板经三级覆盖加载（内置 < ~/.xiaoagent/prompts < .xiaoagent/prompts）
+    template = _default_prompt_loader().load("base.md")
 
     # === 拆分静态/动态区 ===
     if _DYNAMIC_MARKER in template:

@@ -37,7 +37,6 @@
 ```
 coding agent/
 ├── main.py                        # CLI 入口：装配全局单例 → 启动 REPL
-├── system-prompt.md               # System Prompt 模板（运行时依赖，勿移动）
 ├── .env.example / mcp.json.example / requirements.txt
 │
 ├── config/                        # 【配置层】
@@ -101,7 +100,11 @@ coding agent/
 │   ├── artifact_store.py / gateway.py / loader.py / schemas.py
 │   └── defaults/metagpt-lite-3role.yaml  # 默认 3 角色工作流
 │
-├── prompts/workflow/              # 工作流角色 Prompt 模板（analyst/engineer/tester.md）
+├── prompts/                       # 【提示词体系】三级覆盖：内置 < ~/.xiaoagent/prompts < .xiaoagent/prompts
+│   ├── base.md                    # ★ 主 System Prompt 模板（动静分离，Prompt Cache 友好）
+│   ├── fragments/memory.md        # ★ 记忆指令片段（含主动写入引导：任务完成/偏好/决策/纠正）
+│   ├── workflow/                  # 工作流角色 Prompt 模板（analyst/engineer/tester.md）
+│   └── loader.py                  # ★ 提示词资产加载器（三级覆盖 + 新增资产）
 │
 ├── ui/                            # 【界面层】终端交互
 │   ├── repl.py                    # ★ REPL 交互循环（多行输入、编辑器模式、命令分发）

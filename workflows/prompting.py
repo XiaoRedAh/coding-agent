@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from pathlib import Path
-
-_TEMPLATE_ROOT = Path(__file__).parent.parent / "prompts" / "workflow"
+from prompts.loader import PromptLoader, default_loader
 
 
 class PromptBuilderForWorkflow:
-    def __init__(self):
-        self.template_root = _TEMPLATE_ROOT
+    def __init__(self, loader: PromptLoader | None = None):
+        # P1: 工作流模板纳入三级覆盖体系（内置 < 用户级 < 项目级）
+        self.loader = loader or default_loader()
 
     def build_role_prompt(
         self,
@@ -31,10 +30,7 @@ class PromptBuilderForWorkflow:
         return self._render_known_placeholders(template, variables)
 
     def _load_template(self, template_name: str) -> str:
-        candidate = self.template_root / template_name
-        if not candidate.exists():
-            raise FileNotFoundError(f"Missing workflow prompt template: {candidate}")
-        return candidate.read_text(encoding="utf-8")
+        return self.loader.load(f"workflow/{template_name}")
 
     @staticmethod
     def _to_json_like(payloads: list[dict]) -> str:
