@@ -10,10 +10,10 @@ tools/BashTool.py - Shell 命令执行工具
 
 import subprocess
 
-from bootstrap.state import settings
-from bootstrap import state
+from runtime.state import settings
+from runtime import state
 from utils.truncate import truncate_result
-from core.results import ToolResult
+from engine.results import ToolResult
 
 DEFINITION = {
     "name": "run_shell",

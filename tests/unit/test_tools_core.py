@@ -14,8 +14,8 @@ from tools import FileReadTool, FileWriteTool, ListFilesTool, TodoTool, SkillToo
 
 @pytest.fixture
 def tool_workdir(tmp_path, monkeypatch):
-    """隔离工具的工作目录（S2 后只需 patch bootstrap.state.WORKDIR 一处）。"""
-    monkeypatch.setattr("bootstrap.state.WORKDIR", tmp_path)
+    """隔离工具的工作目录（S2 后只需 patch runtime.state.WORKDIR 一处）。"""
+    monkeypatch.setattr("runtime.state.WORKDIR", tmp_path)
     return tmp_path
 
 
@@ -219,7 +219,7 @@ class TestTodoManager:
 def task_mgr(tmp_path, monkeypatch):
     from services.tasks import TaskManager
     tasks_dir = tmp_path / ".xiaoagent" / "tasks"
-    monkeypatch.setattr("bootstrap.state.TASKS_DIR", tasks_dir)
+    monkeypatch.setattr("runtime.state.TASKS_DIR", tasks_dir)
     return TaskManager()
 
 
@@ -263,7 +263,7 @@ class TestTaskManager:
         assert t["blockedBy"] == []
 
     def test_delete_removes_file(self, task_mgr, tmp_path, monkeypatch):
-        import bootstrap.state as st
+        import runtime.state as st
         task_mgr.create("temp")
         out = task_mgr.update(1, status="deleted")
         assert out == "Task 1 deleted"
@@ -299,7 +299,7 @@ class TestTaskManager:
 class TestTaskToolWiring:
     def test_handlers_dispatch_to_state_task_mgr(self, monkeypatch, task_mgr):
         """TaskTool.get_handlers 的 handler 应转发到 state.task_mgr。"""
-        from bootstrap import state
+        from runtime import state
         from tools import TaskTool
         monkeypatch.setattr(state, "task_mgr", task_mgr)
 
@@ -323,7 +323,7 @@ class TestSkillTool:
     @pytest.fixture
     def skill_env(self, tmp_path, monkeypatch):
         from skills.loader import SkillLoader
-        from bootstrap import state
+        from runtime import state
         skill_dir = tmp_path / "skills"
         (skill_dir / "demo").mkdir(parents=True)
         (skill_dir / "demo" / "SKILL.md").write_text(
@@ -362,7 +362,7 @@ class TestSkillTool:
 class TestToolRegistry:
     def test_all_builtin_tools_registered(self, monkeypatch):
         """内置工具的定义与 handler 应完整注册（MCP 未连接时）。"""
-        from bootstrap import state
+        from runtime import state
         from tools import get_all_definitions, get_all_handlers
         monkeypatch.setattr(state, "mcp", None)
         monkeypatch.setattr(state, "todo", TodoTool.TodoManager())
@@ -381,7 +381,7 @@ class TestToolRegistry:
         assert expected <= set(handlers.keys())
 
     def test_definitions_have_valid_schema(self, monkeypatch):
-        from bootstrap import state
+        from runtime import state
         from tools import get_all_definitions
         monkeypatch.setattr(state, "mcp", None)
         for d in get_all_definitions():

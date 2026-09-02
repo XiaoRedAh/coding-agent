@@ -9,7 +9,7 @@ tools/FileReadTool.py - 文件读取工具
 
 from utils.path import safe_path
 from utils.truncate import truncate_result
-from core.results import ToolResult
+from engine.results import ToolResult
 
 DEFINITION = {
     "name": "read_file",

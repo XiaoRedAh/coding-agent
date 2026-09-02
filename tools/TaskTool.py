@@ -6,7 +6,7 @@ tools/TaskTool.py - 持久化任务管理工具
 适合多步骤工作和团队协作中的任务分配。
 """
 
-from bootstrap import state
+from runtime import state
 
 DEFINITIONS = [
     {

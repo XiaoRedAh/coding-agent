@@ -8,8 +8,8 @@ LLM 判断需要时调用此工具加载完整内容。
 对应 Claude Code 的 tools/SkillTool/SkillTool.ts。
 """
 
-from bootstrap import state
-from core.results import ToolResult
+from runtime import state
+from engine.results import ToolResult
 
 DEFINITION = {
     "name": "load_skill",

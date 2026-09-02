@@ -101,7 +101,7 @@ class TestPermissionRules:
             }
         }))
         rules = PermissionRules()
-        import bootstrap.state as st
+        import runtime.state as st
         st.SETTINGS_PATH = settings_dir / "settings.json"
         rules.load_from_settings()
         assert "run_shell(npm*)" in rules.allow_rules

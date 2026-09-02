@@ -23,7 +23,7 @@ import re
 from pathlib import Path
 from typing import Literal
 
-from bootstrap import state
+from runtime import state
 
 # ──────────────────────────────────────────────
 #  权限模式
@@ -126,7 +126,7 @@ class PermissionRules:
 
     def load_from_settings(self):
         """从 .xiaoagent/settings.json 加载规则"""
-        from bootstrap.state import SETTINGS_PATH
+        from runtime.state import SETTINGS_PATH
         settings_path = SETTINGS_PATH
         if not settings_path.exists():
             return
@@ -248,7 +248,7 @@ def check_permission(
     # 3b. Memory 目录白名单
     file_path = tool_input.get("file_path", "")
     if file_path and tool_name in EDIT_TOOLS:
-        from bootstrap import state as _state
+        from runtime import state as _state
         if _state.memory and _state.memory.is_memory_path(file_path):
             return {"action": "allow", "reason": "Memory directory (whitelisted)"}
 

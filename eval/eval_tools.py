@@ -19,7 +19,7 @@ os.environ.setdefault("ANTHROPIC_API_KEY", "test-key")
 _tmpdir_obj = tempfile.TemporaryDirectory()
 _TMPDIR = Path(_tmpdir_obj.name)
 
-import bootstrap.state as _state
+import runtime.state as _state
 _state.WORKDIR = _TMPDIR
 
 

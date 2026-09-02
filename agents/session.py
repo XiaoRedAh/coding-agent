@@ -5,30 +5,30 @@ S3/S4 重构后，本文件只负责：
 1. Workflow 快捷入口分发（/workflow 命令或 SOP_MODE）
 2. 组装主 Agent 的 LoopSpec 配置与 _MainLoopHooks 钩子
    （权限确认 / 上下文压缩 / 通知注入 / 截断续写 / 终端 UI）
-3. 调用 core.loop.AgentLoop 执行并返回 (tracker, breaker)
+3. 调用 engine.loop.AgentLoop 执行并返回 (tracker, breaker)
 
 循环骨架（turn 循环 / 工具执行 / 错误恢复 / 截断续写）在 core/loop.py；
 通知收集在 core/notifications.py；终端渲染在 ui/render.py。
 """
 
-from bootstrap import state
-from bootstrap.state import WARNING_THRESHOLD, settings
+from runtime import state
+from runtime.state import WARNING_THRESHOLD, settings
 
 from tools import get_all_definitions, get_all_handlers
-from context import build_system_prompt  # backward-compat for tests patching query.build_system_prompt
+from context.prompt import build_system_prompt  # backward-compat for tests patching query.build_system_prompt
 from agents.coordinator import is_coordinator_mode
-from services.prompt_builder import PromptBuilder
+from context.builder import PromptBuilder
 from services.permissions import check_permission
-from services.api_errors import LoopConfig
-from services.compact import (
+from engine.errors import LoopConfig
+from context.compact import (
     TokenTracker, CircuitBreaker,
     run_compression_pipeline, check_and_compact,
 )
 from workflows.gateway import maybe_run_workflow
 
-from core.loop import AgentLoop, LoopSpec, LoopHooks
-from core.results import ToolResult
-from core.notifications import collect_bg_notifications, process_agent_notifications
+from engine.loop import AgentLoop, LoopSpec, LoopHooks
+from engine.results import ToolResult
+from engine.notifications import collect_bg_notifications, process_agent_notifications
 from ui.render import (
     Spinner, print_permission_detail, confirm_action,
     print_tool_result, print_agent_start, print_agent_done,

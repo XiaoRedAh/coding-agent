@@ -14,7 +14,7 @@ os.environ.setdefault("MODEL_ID", "test-model")
 os.environ.setdefault("ANTHROPIC_API_KEY", "test-key")
 
 # Patch MEMORY_DIR before importing
-import bootstrap.state as _state
+import runtime.state as _state
 
 
 @dataclass

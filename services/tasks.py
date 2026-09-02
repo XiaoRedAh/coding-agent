@@ -11,7 +11,7 @@ S2 重构：目录在 __init__ 时解析（默认 state.TASKS_DIR），
 
 import json
 
-from bootstrap import state
+from runtime import state
 
 
 class TaskManager:

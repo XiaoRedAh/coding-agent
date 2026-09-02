@@ -19,9 +19,9 @@ try:
 except ImportError:
     pass  # Windows 上可能没有 readline，但 pyreadline3 可以替代
 
-from bootstrap import state
-from services.compact import TokenTracker, CircuitBreaker, auto_compact
-from query import agent_loop
+from runtime import state
+from context.compact import TokenTracker, CircuitBreaker, auto_compact
+from agents.session import agent_loop
 from agents.coordinator import is_coordinator_mode
 
 

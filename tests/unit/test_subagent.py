@@ -11,8 +11,8 @@ from unittest.mock import patch
 import pytest
 
 from agents.subagent import _run_agent_loop, run_subagent
-from bootstrap import state
-from services.api_errors import APIErrorType, LLMError
+from runtime import state
+from engine.errors import APIErrorType, LLMError
 
 
 class _FakeLLM:

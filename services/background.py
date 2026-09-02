@@ -11,7 +11,7 @@ import threading
 import uuid
 from queue import Queue
 
-from bootstrap import state
+from runtime import state
 
 
 class BackgroundManager:

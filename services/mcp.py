@@ -29,14 +29,14 @@ import time
 from pathlib import Path
 from typing import Any
 
-from bootstrap.state import PROJECT_DIR
+from runtime.state import PROJECT_DIR
 
 
 # ──────────────────────────────────────────────
 #  配置（超时值来自 config/defaults.yaml mcp 节）
 # ──────────────────────────────────────────────
 
-from bootstrap.state import settings as _settings
+from runtime.state import settings as _settings
 
 MCP_CONFIG_PATH = PROJECT_DIR / "mcp.json"
 MCP_TOOL_TIMEOUT = _settings.mcp.tool_timeout      # 工具调用超时（秒）
@@ -273,7 +273,7 @@ class McpManager:
 
     def get_tool_handlers(self) -> dict:
         """获取所有 MCP 工具的处理函数映射"""
-        from core.results import ToolResult
+        from engine.results import ToolResult
         handlers = {}
         for server_name, conn in self.connections.items():
             for tool in conn.tools:

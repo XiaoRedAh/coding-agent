@@ -9,7 +9,7 @@ class TestMemoryManager:
         assert mgr.memory_dir is not None
 
     def test_ensure_dir(self, tmp_workdir):
-        import bootstrap.state as st
+        import runtime.state as st
         st.MEMORY_DIR = tmp_workdir / ".xiaoagent" / "memory"
         mgr = MemoryManager()
         mgr.memory_dir = st.MEMORY_DIR
@@ -17,14 +17,14 @@ class TestMemoryManager:
         assert mgr.memory_dir.exists()
 
     def test_get_index_empty(self, tmp_workdir):
-        import bootstrap.state as st
+        import runtime.state as st
         st.MEMORY_DIR = tmp_workdir / ".xiaoagent" / "memory"
         mgr = MemoryManager()
         mgr.memory_dir = st.MEMORY_DIR
         assert mgr.get_index_content() == ""
 
     def test_get_index_with_content(self, tmp_workdir):
-        import bootstrap.state as st
+        import runtime.state as st
         mem_dir = tmp_workdir / ".xiaoagent" / "memory"
         mem_dir.mkdir(parents=True)
         st.MEMORY_DIR = mem_dir
@@ -37,7 +37,7 @@ class TestMemoryManager:
         assert "user_role" in content
 
     def test_get_index_truncation(self, tmp_workdir):
-        import bootstrap.state as st
+        import runtime.state as st
         mem_dir = tmp_workdir / ".xiaoagent" / "memory"
         mem_dir.mkdir(parents=True)
         st.MEMORY_DIR = mem_dir
@@ -50,7 +50,7 @@ class TestMemoryManager:
         assert "truncated" in content.lower()
 
     def test_get_prompt_section(self, tmp_workdir):
-        import bootstrap.state as st
+        import runtime.state as st
         mem_dir = tmp_workdir / ".xiaoagent" / "memory"
         mem_dir.mkdir(parents=True)
         st.MEMORY_DIR = mem_dir
@@ -63,7 +63,7 @@ class TestMemoryManager:
         assert "What NOT to Save" in section
 
     def test_list_memories_empty(self, tmp_workdir):
-        import bootstrap.state as st
+        import runtime.state as st
         mem_dir = tmp_workdir / ".xiaoagent" / "memory"
         st.MEMORY_DIR = mem_dir
         mgr = MemoryManager()
@@ -71,7 +71,7 @@ class TestMemoryManager:
         assert mgr.list_memories() == []
 
     def test_list_memories_with_files(self, tmp_workdir):
-        import bootstrap.state as st
+        import runtime.state as st
         mem_dir = tmp_workdir / ".xiaoagent" / "memory"
         mem_dir.mkdir(parents=True)
         st.MEMORY_DIR = mem_dir
@@ -86,7 +86,7 @@ class TestMemoryManager:
         assert memories[0]["type"] == "user"
 
     def test_is_memory_path(self, tmp_workdir):
-        import bootstrap.state as st
+        import runtime.state as st
         mem_dir = tmp_workdir / ".xiaoagent" / "memory"
         mem_dir.mkdir(parents=True)
         st.MEMORY_DIR = mem_dir
@@ -106,7 +106,7 @@ class TestMemoryManager:
         assert meta == {}
 
     def test_prompt_section_includes_index(self, tmp_workdir):
-        import bootstrap.state as st
+        import runtime.state as st
         mem_dir = tmp_workdir / ".xiaoagent" / "memory"
         mem_dir.mkdir(parents=True)
         st.MEMORY_DIR = mem_dir

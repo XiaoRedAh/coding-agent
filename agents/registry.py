@@ -166,7 +166,7 @@ _UNSET = object()
 def _build_default_registry(project_dir=None) -> AgentRegistry:
     """按懒加载默认值构建注册表（内置 + 用户级 + 项目级）。"""
     if project_dir is None:
-        from bootstrap import state as _state
+        from runtime import state as _state
         project_dir = _state.PROJECT_DIR / "agents"
     return AgentRegistry(project_dir=project_dir)
 

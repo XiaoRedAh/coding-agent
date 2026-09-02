@@ -2,7 +2,7 @@
 bootstrap/state.py - 集中式状态存储
 
 所有全局配置、路径常量、API 客户端和运行时单例实例的唯一来源。
-其他模块通过 `from bootstrap.state import ...` 访问共享状态，
+其他模块通过 `from runtime.state import ...` 访问共享状态，
 避免 import 循环和重复定义。
 
 配置来源（S1 重构后）：

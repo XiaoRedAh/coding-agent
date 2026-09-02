@@ -6,7 +6,7 @@ tools/TodoTool.py - 待办事项工具
 （config/defaults.yaml tools.todo_max_items）。
 """
 
-from bootstrap.state import settings
+from runtime.state import settings
 
 DEFINITION = {
     "name": "TodoWrite",

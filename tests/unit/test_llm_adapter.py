@@ -3,7 +3,7 @@ import json
 import pytest
 from unittest.mock import MagicMock, patch
 from types import SimpleNamespace
-from services.llm import LLMAdapter, LLMResponse
+from llm.adapter import LLMAdapter, LLMResponse
 
 
 class TestLLMResponse:
@@ -142,7 +142,7 @@ class TestLLMAdapterFromEnv:
     def test_default_anthropic(self, monkeypatch):
         monkeypatch.setenv("MODEL_ID", "test-model")
         monkeypatch.delenv("LLM_PROVIDER", raising=False)
-        with patch("services.llm.Anthropic", create=True) as mock_cls:
+        with patch("llm.adapter.Anthropic", create=True) as mock_cls:
             # Avoid actual import — just test the logic
             pass  # from_env tested indirectly via main.py
 

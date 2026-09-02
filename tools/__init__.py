@@ -12,7 +12,7 @@ from tools import (
     ListFilesTool, GrepSearchTool,
     TodoTool, TaskTool, AgentTool, SkillTool,
 )
-from bootstrap import state
+from runtime import state
 
 
 def get_all_definitions() -> list:

@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from bootstrap import state as st
+from runtime import state as st
 from agents.custom_registry import load_custom_role_configs
 from .schemas import RoleConfig, WorkflowConfig
 

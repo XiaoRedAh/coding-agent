@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 from types import SimpleNamespace
 
-from services.api_errors import (
+from engine.errors import (
     APIErrorType,
     RetryConfig,
     JSONParseConfig,
@@ -60,7 +60,7 @@ class LLMAdapter:
     @staticmethod
     def from_env() -> "LLMAdapter":
         """从环境变量自动创建适配器。"""
-        from bootstrap.state import settings
+        from runtime.state import settings
         provider = os.getenv("LLM_PROVIDER", settings.llm.provider).lower()
         model = os.environ["MODEL_ID"]
         # 客户端级超时护栏：防止停滞的连接/流无限挂起主循环。

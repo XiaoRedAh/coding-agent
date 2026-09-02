@@ -14,13 +14,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 os.environ.setdefault("MODEL_ID", "test-model")
 os.environ.setdefault("ANTHROPIC_API_KEY", "test-key")
 
-from services.compact import (
+from context.compact import (
     TokenTracker, CircuitBreaker,
     budget_tool_results, snip_stale_results, microcompact,
     run_compression_pipeline, SNIP_PLACEHOLDER, CLEARED_PLACEHOLDER,
     SNIPPABLE_TOOLS, _extract_summary,
 )
-from bootstrap.state import (
+from runtime.state import (
     BUDGET_THRESHOLD, BUDGET_TIGHT_THRESHOLD, SNIP_THRESHOLD,
     BUDGET_NORMAL, BUDGET_TIGHT, SNIP_KEEP_RECENT,
     MICROCOMPACT_IDLE_SECONDS, MAX_AUTOCOMPACT_FAILURES,

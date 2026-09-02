@@ -126,7 +126,7 @@ class APIErrorMessage:
 #  重试配置常量（值来自 config/ 分层配置）
 # ──────────────────────────────────────────────
 
-from bootstrap.state import settings as _settings
+from runtime.state import settings as _settings
 
 
 class RetryConfig:

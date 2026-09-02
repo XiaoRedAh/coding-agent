@@ -1,6 +1,6 @@
 """单元测试：services/api_errors.py（错误常量、分类、重试配置）"""
 import pytest
-from services.api_errors import (
+from engine.errors import (
     APIErrorType,
     HTTPStatus,
     APIErrorMessage,

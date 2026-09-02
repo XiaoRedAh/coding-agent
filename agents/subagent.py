@@ -19,15 +19,15 @@ import threading
 import time  # noqa: F401  (保留：外部测试可能 patch agents.subagent.time.sleep)
 import uuid
 
-from bootstrap import state
+from runtime import state
 from agents.definitions import get_agent_config, get_filtered_tools
 from utils.truncate import truncate_result
-from services.api_errors import (
+from engine.errors import (
     LoopConfig,
     RetryConfig,  # noqa: F401  (保留：外部测试可能 patch agents.subagent.RetryConfig)
 )
-from core.loop import AgentLoop, LoopSpec, LoopHooks
-from core.results import ToolResult
+from engine.loop import AgentLoop, LoopSpec, LoopHooks
+from engine.results import ToolResult
 
 
 class _SubAgentHooks(LoopHooks):

@@ -1,6 +1,6 @@
 """单元测试：services/llm.py（JSON 截断修复）"""
 import pytest
-from services.llm import LLMAdapter
+from llm.adapter import LLMAdapter
 
 
 class TestJSONRepair:

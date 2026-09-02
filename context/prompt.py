@@ -17,8 +17,8 @@ import subprocess
 from datetime import date
 from pathlib import Path
 
-from bootstrap import state
-from bootstrap.state import settings
+from runtime import state
+from runtime.state import settings
 
 # 静态/动态分界标记（模板中 "# Environment" 之前是静态区）
 _DYNAMIC_MARKER = "# Environment"
@@ -78,7 +78,7 @@ def build_system_prompt() -> list[dict]:
     Returns:
         [{"type": "text", "text": ..., "cache_control": ...}, {"type": "text", "text": ...}]
     """
-    template_path = Path(__file__).parent / "system-prompt.md"
+    template_path = Path(__file__).parent.parent / "system-prompt.md"  # 根目录模板
     template = template_path.read_text(encoding="utf-8")
 
     # === 拆分静态/动态区 ===

@@ -16,7 +16,7 @@ Coordinator 是主 Agent 的一种运行模式，通过 COORDINATOR_MODE=1 激�
 
 import os
 
-from bootstrap.state import WORKDIR
+from runtime.state import WORKDIR
 
 # ──────────────────────────────────────────────
 #  模式激活

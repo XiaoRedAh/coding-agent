@@ -14,9 +14,9 @@ os.environ.setdefault("ANTHROPIC_API_KEY", "test-key-not-real")
 
 @pytest.fixture
 def tmp_workdir(tmp_path, monkeypatch):
-    """Create a temporary working directory and patch bootstrap.state paths."""
+    """Create a temporary working directory and patch runtime.state paths."""
     monkeypatch.chdir(tmp_path)
-    import bootstrap.state as st
+    import runtime.state as st
     monkeypatch.setattr(st, "WORKDIR", tmp_path)
     monkeypatch.setattr(st, "PROJECT_DIR", tmp_path / ".xiaoagent")
     monkeypatch.setattr(st, "MEMORY_DIR", tmp_path / ".xiaoagent" / "memory")

@@ -1,7 +1,7 @@
 """组件测试：query.py agent_loop（Mock LLM 响应，多场景覆盖）"""
 import pytest
 from unittest.mock import patch, MagicMock
-from services.compact import TokenTracker, CircuitBreaker
+from context.compact import TokenTracker, CircuitBreaker
 
 
 def _mock_response(stop_reason="end_turn", content=None, input_tokens=100, output_tokens=50):
@@ -41,9 +41,9 @@ def mock_env():
     mock_llm = MagicMock()
     mock_state.llm = mock_llm
 
-    with patch("query.state", mock_state), \
-         patch("query.build_system_prompt", return_value=[{"type": "text", "text": "sys"}]), \
-         patch("query.is_coordinator_mode", return_value=False):
+    with patch("agents.session.state", mock_state), \
+         patch("agents.session.build_system_prompt", return_value=[{"type": "text", "text": "sys"}]), \
+         patch("agents.session.is_coordinator_mode", return_value=False):
         yield mock_state, mock_llm
 
 
@@ -51,7 +51,7 @@ class TestAgentLoopBasic:
     def test_text_response_exits(self, mock_env):
         mock_state, mock_llm = mock_env
         mock_llm.chat.return_value = _mock_response()
-        from query import agent_loop
+        from agents.session import agent_loop
         messages = [{"role": "user", "content": "hello"}]
         agent_loop(messages)
         assert mock_llm.chat.call_count == 1
@@ -63,12 +63,12 @@ class TestAgentLoopBasic:
             _mock_response("tool_use", [tool]),
             _mock_response(),
         ]
-        from query import agent_loop
+        from agents.session import agent_loop
         messages = [{"role": "user", "content": "read test.py"}]
         handlers = {"read_file": lambda **kw: "file content"}
-        with patch("query.get_all_handlers", return_value=handlers), \
-             patch("query.get_all_definitions", return_value=[]), \
-             patch("query.check_permission", return_value={"action": "allow", "reason": "ok"}):
+        with patch("agents.session.get_all_handlers", return_value=handlers), \
+             patch("agents.session.get_all_definitions", return_value=[]), \
+             patch("agents.session.check_permission", return_value={"action": "allow", "reason": "ok"}):
             agent_loop(messages)
         assert mock_llm.chat.call_count == 2
 
@@ -82,11 +82,11 @@ class TestAgentLoopPermissions:
             _mock_response("tool_use", [tool]),
             _mock_response(),
         ]
-        from query import agent_loop
+        from agents.session import agent_loop
         messages = [{"role": "user", "content": "delete"}]
-        with patch("query.get_all_handlers", return_value={}), \
-             patch("query.get_all_definitions", return_value=[]), \
-             patch("query.check_permission", return_value={"action": "deny", "reason": "Blocked"}):
+        with patch("agents.session.get_all_handlers", return_value={}), \
+             patch("agents.session.get_all_definitions", return_value=[]), \
+             patch("agents.session.check_permission", return_value={"action": "deny", "reason": "Blocked"}):
             agent_loop(messages)
         tool_msg = messages[2]
         assert any("Permission denied" in str(r.get("content", "")) for r in tool_msg["content"])
@@ -100,11 +100,11 @@ class TestAgentLoopPermissions:
         ]
         def bad_handler(**kw):
             raise FileNotFoundError("not found")
-        from query import agent_loop
+        from agents.session import agent_loop
         messages = [{"role": "user", "content": "read bad"}]
-        with patch("query.get_all_handlers", return_value={"read_file": bad_handler}), \
-             patch("query.get_all_definitions", return_value=[]), \
-             patch("query.check_permission", return_value={"action": "allow", "reason": "ok"}):
+        with patch("agents.session.get_all_handlers", return_value={"read_file": bad_handler}), \
+             patch("agents.session.get_all_definitions", return_value=[]), \
+             patch("agents.session.check_permission", return_value={"action": "allow", "reason": "ok"}):
             agent_loop(messages)
         tool_msg = messages[2]
         assert any("Error" in str(r.get("content", "")) for r in tool_msg["content"])
@@ -123,11 +123,11 @@ class TestAgentLoopMultiTool:
         def tracking_handler(**kw):
             call_log.append(kw["file_path"])
             return f"content of {kw['file_path']}"
-        from query import agent_loop
+        from agents.session import agent_loop
         messages = [{"role": "user", "content": "read two files"}]
-        with patch("query.get_all_handlers", return_value={"read_file": tracking_handler}), \
-             patch("query.get_all_definitions", return_value=[]), \
-             patch("query.check_permission", return_value={"action": "allow", "reason": "ok"}):
+        with patch("agents.session.get_all_handlers", return_value={"read_file": tracking_handler}), \
+             patch("agents.session.get_all_definitions", return_value=[]), \
+             patch("agents.session.check_permission", return_value={"action": "allow", "reason": "ok"}):
             agent_loop(messages)
         assert call_log == ["a.py", "b.py"]
 
@@ -149,11 +149,11 @@ class TestAgentLoopMultiTool:
             "read_file": lambda **kw: "# TODO",
             "grep_search": lambda **kw: "main.py:1:# TODO",
         }
-        from query import agent_loop
+        from agents.session import agent_loop
         messages = [{"role": "user", "content": "find TODOs"}]
-        with patch("query.get_all_handlers", return_value=handlers), \
-             patch("query.get_all_definitions", return_value=[]), \
-             patch("query.check_permission", return_value={"action": "allow", "reason": "ok"}):
+        with patch("agents.session.get_all_handlers", return_value=handlers), \
+             patch("agents.session.get_all_definitions", return_value=[]), \
+             patch("agents.session.check_permission", return_value={"action": "allow", "reason": "ok"}):
             agent_loop(messages)
         assert mock_llm.chat.call_count == 4
 
@@ -165,7 +165,7 @@ class TestAgentLoopNotifications:
             {"task_id": "bg1", "status": "completed", "result": "build success"}
         ]
         mock_llm.chat.return_value = _mock_response()
-        from query import agent_loop
+        from agents.session import agent_loop
         messages = [{"role": "user", "content": "status?"}]
         agent_loop(messages)
         assert any("background-results" in str(m.get("content", "")) for m in messages)
@@ -181,7 +181,7 @@ class TestAgentLoopNotifications:
         mock_agent_tasks.wait_and_drain.return_value = ([], 0)
         mock_state.agent_tasks = mock_agent_tasks
         mock_llm.chat.return_value = _mock_response()
-        from query import agent_loop
+        from agents.session import agent_loop
         messages = [{"role": "user", "content": "check"}]
         agent_loop(messages)
         assert any("task-notification" in str(m.get("content", "")) for m in messages)
@@ -195,11 +195,11 @@ class TestAgentLoopUnknownTool:
             _mock_response("tool_use", [tool]),
             _mock_response(),
         ]
-        from query import agent_loop
+        from agents.session import agent_loop
         messages = [{"role": "user", "content": "do something"}]
-        with patch("query.get_all_handlers", return_value={}), \
-             patch("query.get_all_definitions", return_value=[]), \
-             patch("query.check_permission", return_value={"action": "allow", "reason": "ok"}):
+        with patch("agents.session.get_all_handlers", return_value={}), \
+             patch("agents.session.get_all_definitions", return_value=[]), \
+             patch("agents.session.check_permission", return_value={"action": "allow", "reason": "ok"}):
             agent_loop(messages)
         tool_msg = messages[2]
         assert any("Unknown tool" in str(r.get("content", "")) for r in tool_msg["content"])
@@ -218,12 +218,12 @@ class TestAgentLoopProtection:
             _mock_response("tool_use", [tool]),
         ] * 100  # 足够多，触发 maxTurns
 
-        from query import agent_loop
+        from agents.session import agent_loop
         messages = [{"role": "user", "content": "loop"}]
         handlers = {"read_file": lambda **kw: "content"}
-        with patch("query.get_all_handlers", return_value=handlers), \
-             patch("query.get_all_definitions", return_value=[]), \
-             patch("query.check_permission", return_value={"action": "allow", "reason": "ok"}):
+        with patch("agents.session.get_all_handlers", return_value=handlers), \
+             patch("agents.session.get_all_definitions", return_value=[]), \
+             patch("agents.session.check_permission", return_value={"action": "allow", "reason": "ok"}):
             tracker, breaker = agent_loop(messages, max_turns=10)
 
         # 应该最多调用 max_turns 次（10次后停止）
@@ -237,12 +237,12 @@ class TestAgentLoopProtection:
             _mock_response("tool_use", [tool]),
         ] * 100
 
-        from query import agent_loop
+        from agents.session import agent_loop
         messages = [{"role": "user", "content": "loop"}]
         handlers = {"read_file": lambda **kw: "content"}
-        with patch("query.get_all_handlers", return_value=handlers), \
-             patch("query.get_all_definitions", return_value=[]), \
-             patch("query.check_permission", return_value={"action": "allow", "reason": "ok"}):
+        with patch("agents.session.get_all_handlers", return_value=handlers), \
+             patch("agents.session.get_all_definitions", return_value=[]), \
+             patch("agents.session.check_permission", return_value={"action": "allow", "reason": "ok"}):
             tracker, breaker = agent_loop(messages, max_turns=3)
 
         assert mock_llm.chat.call_count <= 4  # 3轮 + 1
@@ -251,8 +251,8 @@ class TestAgentLoopProtection:
         """连续 LLM 错误达到阈值后应该停止。"""
         mock_state, mock_llm = mock_env
 
-        from services.llm import LLMError
-        from services.api_errors import APIErrorType
+        from llm.adapter import LLMError
+        from engine.errors import APIErrorType
 
         # 模拟连续的 LLM 错误
         mock_llm.chat.side_effect = [
@@ -261,9 +261,9 @@ class TestAgentLoopProtection:
             LLMError("API error", APIErrorType.RATE_LIMIT),
         ]
 
-        from query import agent_loop
+        from agents.session import agent_loop
         messages = [{"role": "user", "content": "test"}]
-        with patch("query.build_system_prompt", return_value=[{"type": "text", "text": "sys"}]):
+        with patch("agents.session.build_system_prompt", return_value=[{"type": "text", "text": "sys"}]):
             tracker, breaker = agent_loop(messages, max_turns=10)
 
         # 连续 3 个 LLM 错误后停止
@@ -273,8 +273,8 @@ class TestAgentLoopProtection:
         """LLM 错误应该被注入为用户消息，让 LLM 知道发生了什么。"""
         mock_state, mock_llm = mock_env
 
-        from services.llm import LLMError
-        from services.api_errors import APIErrorType
+        from llm.adapter import LLMError
+        from engine.errors import APIErrorType
 
         call_count = [0]
 
@@ -286,9 +286,9 @@ class TestAgentLoopProtection:
 
         mock_llm.chat.side_effect = side_effect_func
 
-        from query import agent_loop
+        from agents.session import agent_loop
         messages = [{"role": "user", "content": "test"}]
-        with patch("query.build_system_prompt", return_value=[{"type": "text", "text": "sys"}]):
+        with patch("agents.session.build_system_prompt", return_value=[{"type": "text", "text": "sys"}]):
             tracker, breaker = agent_loop(messages)
 
         # 第二次调用成功，消息中应该包含错误注入
@@ -316,11 +316,11 @@ class TestAgentLoopProtection:
         def bad_handler(**kw):
             raise FileNotFoundError("not found")
 
-        from query import agent_loop
+        from agents.session import agent_loop
         messages = [{"role": "user", "content": "loop"}]
-        with patch("query.get_all_handlers", return_value={"read_file": bad_handler}), \
-             patch("query.get_all_definitions", return_value=[]), \
-             patch("query.check_permission", return_value={"action": "allow", "reason": "ok"}):
+        with patch("agents.session.get_all_handlers", return_value={"read_file": bad_handler}), \
+             patch("agents.session.get_all_definitions", return_value=[]), \
+             patch("agents.session.check_permission", return_value={"action": "allow", "reason": "ok"}):
             tracker, breaker = agent_loop(messages, max_turns=10)
 
         # 同一轮内 6 个工具都报错 >= MAX_CONSECUTIVE_TOOL_ERRORS(5)，应该停止
@@ -335,8 +335,8 @@ class TestAgentLoopRecovery:
         """成功响应后错误计数器应该重置。"""
         mock_state, mock_llm = mock_env
 
-        from services.llm import LLMError
-        from services.api_errors import APIErrorType
+        from llm.adapter import LLMError
+        from engine.errors import APIErrorType
 
         # 错误 1 次 → 成功 1 次 → 成功 2 次 → 退出
         mock_llm.chat.side_effect = [
@@ -344,9 +344,9 @@ class TestAgentLoopRecovery:
             _mock_response(),                                  # 成功1，重置计数，返回
         ]
 
-        from query import agent_loop
+        from agents.session import agent_loop
         messages = [{"role": "user", "content": "test"}]
-        with patch("query.build_system_prompt", return_value=[{"type": "text", "text": "sys"}]):
+        with patch("agents.session.build_system_prompt", return_value=[{"type": "text", "text": "sys"}]):
             tracker, breaker = agent_loop(messages, max_turns=10)
 
         # 错误后成功一次即退出

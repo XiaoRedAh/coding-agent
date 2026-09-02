@@ -13,7 +13,7 @@ tools/FileEditTool.py - 文件编辑工具
 import re
 
 from utils.path import safe_path
-from core.results import ToolResult
+from engine.results import ToolResult
 
 DEFINITION = {
     "name": "edit_file",

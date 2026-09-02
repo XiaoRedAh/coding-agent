@@ -34,7 +34,7 @@ def process_agent_notifications(
     收集异步子 Agent 通知（含 Coordinator 等待逻辑）。
 
     Args:
-        state: bootstrap.state（需有 agent_tasks 属性）
+        state: runtime.state（需有 agent_tasks 属性）
         coordinator_mode: 是否处于 Coordinator 模式
         wait_timeout: Coordinator 等待 Worker 完成的超时（秒）
 

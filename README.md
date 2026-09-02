@@ -32,109 +32,92 @@
 
 ## 项目结构
 
+按领域分层组织，依赖方向自上而下（上层可依赖下层，反之禁止）：
+
 ```
 coding agent/
-├── main.py                        # CLI 入口，初始化所有全局单例
-├── query.py                       # ★ 主 Agent 循环（薄组装层：配置+hooks 组装，骨架在 core/loop）
-├── context.py                     # ★ System Prompt 构建器（动静分离 + Prompt Cache 标记）
+├── main.py                        # CLI 入口：装配全局单例 → 启动 REPL
 ├── system-prompt.md               # System Prompt 模板（运行时依赖，勿移动）
-├── .env.example                   # 环境变量模板
-├── mcp.json.example               # MCP 配置示例
-├── requirements.txt               # Python 依赖
+├── .env.example / mcp.json.example / requirements.txt
 │
-├── config/                        # 分层配置系统
+├── config/                        # 【配置层】
 │   ├── defaults.yaml              # 全量默认配置（约 40 项参数，带注释，改配置不改代码）
 │   └── loader.py                  # 四层合并（内置<用户级<项目级<环境变量）+ 校验 + 冻结 Settings
 │
-├── core/                          # Agent 核心运行时
-│   ├── loop.py                    # ★ 统一 Agent Loop（主/子 agent 共用骨架，差异以 LoopSpec+Hooks 表达）
-│   └── notifications.py           # 后台/Agent 通知收集（含 Coordinator 阻塞等待逻辑）
+├── runtime/                       # 【运行时状态】
+│   └── state.py                   # ★ 集中式状态存储：路径常量、所有运行时单例
 │
-├── ui/                            # 终端渲染（与核心逻辑分离）
-│   └── render.py                  # spinner（含等待秒数）/ 权限确认交互 / 工具结果打印
+├── engine/                        # 【核心引擎】与具体功能无关的循环骨架
+│   ├── loop.py                    # ★ 统一 Agent Loop（主/子 agent 共用，差异以 LoopSpec+Hooks 表达）
+│   ├── results.py                 # ToolResult 结构化工具结果（str 子类，ok/error 元数据）
+│   ├── notifications.py           # 后台/Agent 通知收集（含 Coordinator 阻塞等待）
+│   └── errors.py                  # API 错误分类、重试与循环保护配置
 │
-├── bootstrap/                     # 引导和全局状态
-│   └── state.py                   # ★ 集中式状态存储：路径常量、压缩阈值、所有运行时单例
+├── llm/                           # 【模型接入层】
+│   └── adapter.py                 # ★ LLM 适配器（Anthropic/OpenAI 双格式，流式，JSON 截断修复）
 │
-├── agents/                        # 多 Agent 系统
-│   ├── definitions.py             # 4 种内置 Agent 类型（explore/plan/general/verification）
-│   ├── subagent.py                # ★ SubAgent 执行引擎（统一循环的薄封装：同步+异步）
+├── context/                       # 【上下文管理】
+│   ├── prompt.py                  # ★ System Prompt 构建（动静分离 + Prompt Cache 标记）
+│   ├── builder.py                 # 运行时 Prompt 装配器（normal/coordinator 模式切换）
+│   └── compact.py                 # ★ 5 级上下文压缩管道（断路器 + TokenTracker）
+│
+├── agents/                        # 【多 Agent 系统】
+│   ├── session.py                 # ★ 主 Agent 会话循环（统一循环的薄组装：权限/压缩/通知/UI 钩子）
+│   ├── registry.py                # ★ Agent 类型注册表（内置 + 用户自定义，统一 YAML 定义）
+│   ├── builtins/                  # 内置 Agent 定义（explore/plan/general/verification.yaml）
+│   ├── subagent.py                # ★ SubAgent 派生执行（统一循环薄封装：同步 + 异步）
 │   ├── coordinator.py             # ★ Coordinator 协调者模式（规划-执行分离）
 │   ├── task_queue.py              # 异步 Agent 任务通知队列
-│   └── custom_registry.py         # 用户自定义角色注册表
+│   ├── custom_registry.py         # 工作流自定义角色加载
+│   └── definitions.py             # 兼容层（旧导出转发到 registry）
 │
-├── services/                      # 服务层
-│   ├── llm.py                     # ★ LLM 适配器（Anthropic/OpenAI 双格式，流式输出，JSON截断修复）
-│   ├── compact.py                 # ★ 5 级上下文压缩管道（带断路器和 TokenTracker）
-│   ├── permissions.py             # ★ 3 层权限控制管线（5 种模式 + 危险检测）
-│   ├── mcp.py                     # ★ MCP 集成（stdio 连接、工具发现、JSON-RPC 通信）
-│   ├── memory.py                  # ★ 跨会话记忆系统（4 种类型，Markdown 存储）
-│   ├── tasks.py                   # 持久化任务管理器
-│   ├── background.py              # 后台 Shell 管理器
-│   ├── prompt_builder.py          # 运行时 Prompt 装配器（normal/coordinator 模式切换）
-│   └── api_errors.py              # API 错误分类与重试配置
-│
-├── tools/                         # 工具系统
+├── tools/                         # 【工具层】
 │   ├── __init__.py                # 工具注册表（get_all_definitions + get_all_handlers）
 │   ├── BashTool.py                # Shell 命令执行（支持 run_in_background）
 │   ├── FileReadTool.py            # 文件读取（带行号）
 │   ├── FileWriteTool.py           # 文件写入（自动创建父目录）
 │   ├── FileEditTool.py            # 文件精确编辑（引号容错、唯一性检查）
-│   ├── ListFilesTool.py           # Glob 文件列表
-│   ├── GrepSearchTool.py          # 内容搜索
-│   ├── AgentTool.py               # SubAgent 统一入口（同步/异步派生）
+│   ├── ListFilesTool.py           # Glob 文件列表（mtime 排序）
+│   ├── GrepSearchTool.py          # 内容搜索（纯 Python，跨平台）
+│   ├── AgentTool.py               # SubAgent 统一入口（type enum 动态反映注册表）
 │   ├── SkillTool.py               # 技能按需加载
 │   ├── TodoTool.py                # 内存待办清单
 │   └── TaskTool.py                # 持久化任务 CRUD（5 个操作）
 │
-├── screens/                       # 用户界面
-│   └── repl.py                    # ★ REPL 交互循环（多行输入、编辑器模式、彩色输出）
+├── services/                      # 【外围服务】agent 依赖的功能子系统
+│   ├── permissions.py             # ★ 3 层权限控制管线（5 种模式 + 危险检测）
+│   ├── mcp.py                     # ★ MCP 集成（stdio 连接、工具发现、JSON-RPC 通信）
+│   ├── memory.py                  # ★ 跨会话记忆系统（4 种类型，Markdown 存储）
+│   ├── tasks.py                   # 持久化任务管理器
+│   └── background.py              # 后台 Shell 管理器
 │
-├── skills/                        # 技能系统
+├── skills/                        # 【技能系统】
 │   ├── loader.py                  # 技能文件加载器（渐进式披露，参数替换）
 │   └── commit/SKILL.md            # 示例技能：Git Conventional Commits
 │
-├── workflows/                     # MetaGPT-lite SOP 工作流引擎
-│   ├── engine.py                  # ★ 工作流主循环（事件驱动角色执行）
-│   ├── role_runtime.py            # 角色运行时执行器
-│   ├── event_bus.py               # 发布-订阅事件总线
-│   ├── prompting.py               # 角色提示词构建器
-│   ├── structured_output.py       # LLM JSON 输出提取与验证
-│   ├── artifact_store.py          # 产物文件存储
-│   ├── gateway.py                 # 工作流快捷入口（/workflow 命令 + SOP_MODE）
-│   ├── loader.py                  # 工作流配置加载器
-│   └── defaults/
-│       └── metagpt-lite-3role.yaml  # 默认 3 角色工作流（Analyst → Engineer → Tester）
+├── workflows/                     # 【SOP 工作流】MetaGPT-lite 事件驱动引擎
+│   ├── engine.py                  # ★ 工作流主循环
+│   ├── role_runtime.py / event_bus.py / prompting.py / structured_output.py
+│   ├── artifact_store.py / gateway.py / loader.py / schemas.py
+│   └── defaults/metagpt-lite-3role.yaml  # 默认 3 角色工作流
 │
-├── prompts/workflow/              # 工作流角色 Prompt 模板
-│   ├── analyst.md                 # 分析师：需求分析 → 设计包
-│   ├── engineer.md                # 工程师：代码实现
-│   └── tester.md                  # 测试员：验证 + pass/fail 判定
+├── prompts/workflow/              # 工作流角色 Prompt 模板（analyst/engineer/tester.md）
 │
-├── utils/                         # 工具函数
+├── ui/                            # 【界面层】终端交互
+│   ├── repl.py                    # ★ REPL 交互循环（多行输入、编辑器模式、命令分发）
+│   └── render.py                  # spinner（含等待秒数）/ 权限确认交互 / 工具结果打印
+│
+├── utils/                         # 【通用工具】
 │   ├── path.py                    # 路径安全检查（防止目录逃逸）
 │   └── truncate.py                # 结果截断（保留头尾各半）
 │
-├── tests/                         # 测试
-│   ├── conftest.py                # 共享 fixtures（tmp_workdir 等）
-│   ├── unit/                      # 单元测试（14 个文件）
-│   ├── component/                 # 组件测试（Mock LLM 的 Agent Loop 端到端测试）
-│   └── integration/               # 集成测试（需真实 LLM API Key）
-│
-├── eval/                          # 模块评估（7 个独立评估脚本，~293 用例）
-│   ├── eval_permissions.py        # 权限评估（~198 用例）
-│   ├── eval_tools.py              # 工具评估（~30 用例）
-│   ├── eval_compact.py            # 压缩评估（~20 用例）
-│   ├── eval_skills.py             # 技能评估（~15 用例）
-│   ├── eval_memory.py             # 记忆评估（~12 用例）
-│   ├── eval_mcp.py                # MCP 评估（~10 用例）
-│   └── eval_subagent.py           # SubAgent 评估（~8 用例，需 LLM）
-│
-└── docs/                          # 文档（调研报告、设计文档、计划等）
+├── tests/                         # 测试（unit / component / integration 三层）
+├── eval/                          # 模块评估（7 个独立评估脚本）
+└── docs/                          # 文档（五分类：调研/计划/复盘/详解/归档）
 ```
 
 **核心代码文件**（标 ★）是理解项目架构的推荐阅读顺序：
-`bootstrap/state.py` → `main.py` → `query.py` → `context.py` → `services/llm.py` → `services/compact.py` → `services/permissions.py` → `agents/subagent.py` → `agents/coordinator.py`
+`runtime/state.py` → `main.py` → `engine/loop.py` → `agents/session.py` → `context/prompt.py` → `llm/adapter.py` → `context/compact.py` → `services/permissions.py` → `agents/subagent.py` → `agents/coordinator.py`
 
 ---
 

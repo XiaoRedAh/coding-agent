@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from bootstrap.state import WORKDIR
+from runtime.state import WORKDIR
 from utils.path import safe_path
 
 

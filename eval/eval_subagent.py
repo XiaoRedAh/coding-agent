@@ -229,8 +229,8 @@ def evaluate_llm_integration() -> EvalResult:
 
     # Initialize LLM client
     try:
-        from services.llm import LLMAdapter
-        import bootstrap.state as state
+        from llm.adapter import LLMAdapter
+        import runtime.state as state
 
         if state.llm is None:
             state.llm = LLMAdapter.from_env()

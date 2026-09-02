@@ -65,7 +65,7 @@ def _call_with_retry(llm, max_retries=3, **kwargs):
 def llm():
     """Create a real LLM adapter from .env config."""
     os.environ.setdefault("PERMISSION_MODE", "bypassPermissions")
-    from services.llm import LLMAdapter
+    from llm.adapter import LLMAdapter
     return LLMAdapter.from_env()
 
 

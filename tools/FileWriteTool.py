@@ -8,7 +8,7 @@ System Prompt 中约束 LLM "优先用 edit_file，只对新文件用 write_file
 """
 
 from utils.path import safe_path
-from core.results import ToolResult
+from engine.results import ToolResult
 
 DEFINITION = {
     "name": "write_file",

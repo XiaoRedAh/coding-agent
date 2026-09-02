@@ -3,13 +3,13 @@ utils/path.py - 路径安全检查
 
 防止路径逃逸攻击，确保所有文件操作限制在工作目录内。
 
-S2 重构：动态读取 bootstrap.state.WORKDIR（属性访问），
+S2 重构：动态读取 runtime.state.WORKDIR（属性访问），
 使运行时切换/测试隔离只需 patch 一处。
 """
 
 from pathlib import Path
 
-from bootstrap import state
+from runtime import state
 
 
 def safe_path(p: str) -> Path:

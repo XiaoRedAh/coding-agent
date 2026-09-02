@@ -157,8 +157,8 @@ class TestMcpToolResultWrap:
             "content": [{"type": "text", "text": "syntax error near FROM"}],
         })
         out = mgr.get_tool_handlers()["mcp__db__query"](sql="BAD")
-        from core.results import ToolResult
-        from core.loop import is_tool_error
+        from engine.results import ToolResult
+        from engine.loop import is_tool_error
         assert isinstance(out, ToolResult)
         assert is_tool_error(out)              # 关键：旧字符串嗅探判不出，现在能判出
         assert out.error == "mcp_error"
@@ -167,6 +167,6 @@ class TestMcpToolResultWrap:
     def test_error_unknown_content(self):
         mgr = self._manager_with_fake_conn({"isError": True, "content": []})
         out = mgr.get_tool_handlers()["mcp__db__query"]()
-        from core.loop import is_tool_error
+        from engine.loop import is_tool_error
         assert is_tool_error(out)
         assert "Unknown error" in out

@@ -77,7 +77,7 @@ class SkillLoader:
         这是渐进式披露的第一阶段：只放名称和一句话描述，
         全部技能的简介通常只消耗几百 token。
         """
-        from bootstrap.state import settings
+        from runtime.state import settings
         if not self.skills:
             return "(no skills)"
         max_desc = settings.tools.skill_description_max_chars

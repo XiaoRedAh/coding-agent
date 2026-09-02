@@ -1,7 +1,7 @@
 """单元测试：services/compact.py (TokenTracker, CircuitBreaker, Budget, Snip)"""
 import pytest
 from unittest.mock import MagicMock
-from services.compact import (
+from context.compact import (
     TokenTracker, CircuitBreaker, budget_tool_results, snip_stale_results,
 )
 
@@ -41,7 +41,7 @@ class TestTokenTracker:
     def test_get_utilization(self, monkeypatch):
         # EFFECTIVE_WINDOW 受 .env 的 MODEL_CONTEXT_WINDOW 影响，
         # 显式固定窗口值保证测试与运行环境无关
-        monkeypatch.setattr("services.compact.EFFECTIVE_WINDOW", 180000)
+        monkeypatch.setattr("context.compact.EFFECTIVE_WINDOW", 180000)
         t = TokenTracker()
         t.update_from_response(self._make_response(90000, 0))
         util = t.get_utilization()

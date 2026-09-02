@@ -162,7 +162,7 @@ class TestValidation:
 class TestWiring:
     def test_get_agent_config_supports_custom(self, tmp_path, monkeypatch):
         """definitions.get_agent_config 应能查到注册表中的自定义类型。"""
-        import bootstrap.state as st
+        import runtime.state as st
         monkeypatch.setattr(st, "PROJECT_DIR", tmp_path / ".xiaoagent")
         agents_dir = tmp_path / ".xiaoagent" / "agents"
         agents_dir.mkdir(parents=True)
@@ -177,7 +177,7 @@ class TestWiring:
 
     def test_agent_tool_enum_includes_custom(self, tmp_path, monkeypatch):
         """AgentTool.get_definition 的 enum 应动态包含自定义类型。"""
-        import bootstrap.state as st
+        import runtime.state as st
         monkeypatch.setattr(st, "PROJECT_DIR", tmp_path / ".xiaoagent")
         agents_dir = tmp_path / ".xiaoagent" / "agents"
         agents_dir.mkdir(parents=True)
@@ -197,7 +197,7 @@ class TestWiring:
 
     def test_agent_tool_dispatches_custom_type(self, tmp_path, monkeypatch):
         """AgentTool.handle 应能用自定义类型派发（走对应配置）。"""
-        import bootstrap.state as st
+        import runtime.state as st
         monkeypatch.setattr(st, "PROJECT_DIR", tmp_path / ".xiaoagent")
         agents_dir = tmp_path / ".xiaoagent" / "agents"
         agents_dir.mkdir(parents=True)

@@ -17,7 +17,7 @@ from tools import BashTool, GrepSearchTool
 
 @pytest.fixture
 def bash_workdir(tmp_path, monkeypatch):
-    monkeypatch.setattr("bootstrap.state.WORKDIR", tmp_path)
+    monkeypatch.setattr("runtime.state.WORKDIR", tmp_path)
     return tmp_path
 
 
@@ -122,7 +122,7 @@ class TestBashToolBackground:
 class TestGrepSearchTool:
     @pytest.fixture
     def grep_workdir(self, tmp_path, monkeypatch):
-        monkeypatch.setattr("bootstrap.state.WORKDIR", tmp_path)
+        monkeypatch.setattr("runtime.state.WORKDIR", tmp_path)
         monkeypatch.chdir(tmp_path)
         (tmp_path / "a.py").write_text("hello world\nfoo bar\n", encoding="utf-8")
         (tmp_path / "b.txt").write_text("hello again\n", encoding="utf-8")
@@ -201,7 +201,7 @@ class TestGrepSearchTool:
         # handle 内每次调用从 settings 读取，patch settings.tools 的 getter 行不通
         # （冻结 dataclass），改 patch tools.GrepSearchTool.settings
         from types import SimpleNamespace
-        import bootstrap.state as st
+        import runtime.state as st
         fake_settings = SimpleNamespace(
             tools=SimpleNamespace(
                 grep_max_matches=2,

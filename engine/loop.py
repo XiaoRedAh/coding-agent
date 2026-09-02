@@ -25,7 +25,7 @@ import threading
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
 
-from services.api_errors import (
+from engine.errors import (
     APIErrorType,
     LLMError,
     APIRetryExhaustedError,

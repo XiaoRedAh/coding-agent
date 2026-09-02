@@ -11,12 +11,12 @@ from types import SimpleNamespace
 
 import pytest
 
-from core.loop import (
+from engine.loop import (
     AgentLoop, LoopSpec, LoopHooks, LoopResult,
     is_error_output, extract_text, is_tool_error,
 )
-from core.results import ToolResult
-from services.api_errors import APIErrorType, LLMError
+from engine.results import ToolResult
+from engine.errors import APIErrorType, LLMError
 
 
 class _FakeLLM:

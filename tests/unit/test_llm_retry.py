@@ -1,8 +1,8 @@
 """单元测试：services/llm.py（重试机制）"""
 import pytest
 from unittest.mock import MagicMock, patch
-from services.llm import LLMAdapter, LLMResponse, LLMError, APIRetryExhaustedError
-from services.api_errors import APIErrorType, RetryConfig
+from llm.adapter import LLMAdapter, LLMResponse, LLMError, APIRetryExhaustedError
+from engine.errors import APIErrorType, RetryConfig
 
 
 class MockAPIError(Exception):

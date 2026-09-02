@@ -18,8 +18,8 @@ import json
 import re
 import time
 
-from bootstrap import state as _state
-from bootstrap.state import (
+from runtime import state as _state
+from runtime.state import (
     TRANSCRIPT_DIR, EFFECTIVE_WINDOW,
     BUDGET_THRESHOLD, BUDGET_TIGHT_THRESHOLD, SNIP_THRESHOLD,
     AUTOCOMPACT_THRESHOLD, BUDGET_NORMAL, BUDGET_TIGHT,

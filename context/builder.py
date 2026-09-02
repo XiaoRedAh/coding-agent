@@ -6,7 +6,7 @@ services/prompt_builder.py - 统一系统提示词与工具装配入口
 - 工具白名单过滤
 """
 
-from context import build_system_prompt
+from context.prompt import build_system_prompt
 from agents.coordinator import is_coordinator_mode, get_coordinator_config
 
 

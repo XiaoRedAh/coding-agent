@@ -20,8 +20,8 @@ services/memory.py - 记忆系统
 import re
 from pathlib import Path
 
-from bootstrap import state
-from bootstrap.state import settings
+from runtime import state
+from runtime.state import settings
 
 # 记忆类型
 MEMORY_TYPES = {"user", "feedback", "project", "reference"}

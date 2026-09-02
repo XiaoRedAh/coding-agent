@@ -170,23 +170,23 @@ class TestValidation:
 
 class TestBootstrapIntegration:
     def test_state_module_exposes_settings(self):
-        """bootstrap.state 应暴露 settings 且常量与之同步。"""
-        import bootstrap.state as st
+        """runtime.state 应暴露 settings 且常量与之同步。"""
+        import runtime.state as st
         assert isinstance(st.settings, Settings)
         assert st.BUDGET_THRESHOLD == st.settings.compact.budget_threshold
         assert st.AUTOCOMPACT_THRESHOLD == st.settings.compact.autocompact_threshold
 
     def test_loop_config_from_settings(self):
         """api_errors 的 LoopConfig/RetryConfig 值应来自 Settings。"""
-        import bootstrap.state as st
-        from services.api_errors import LoopConfig, RetryConfig
+        import runtime.state as st
+        from engine.errors import LoopConfig, RetryConfig
         assert LoopConfig.DEFAULT_MAX_TURNS == st.settings.loop.default_max_turns
         assert LoopConfig.MAX_CONSECUTIVE_TOOL_ERRORS == st.settings.loop.max_consecutive_tool_errors
         assert RetryConfig.BASE_DELAY_MS == st.settings.retry.base_delay_ms
 
     def test_tool_constants_from_settings(self):
         """工具层模块常量应来自 Settings。"""
-        import bootstrap.state as st
+        import runtime.state as st
         from utils.truncate import MAX_RESULT_CHARS
         from services.memory import MAX_INDEX_LINES
         assert MAX_RESULT_CHARS == st.settings.tools.max_result_chars
@@ -194,7 +194,7 @@ class TestBootstrapIntegration:
 
     def test_bash_default_timeout_from_settings(self):
         """BashTool 默认超时应来自 Settings（未显式传 timeout 时）。"""
-        import bootstrap.state as st
+        import runtime.state as st
         from tools import BashTool
         monkeypatch_target = None
         # 直接验证：handle 不传 timeout 时使用 settings.shell.default_timeout

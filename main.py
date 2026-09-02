@@ -15,8 +15,8 @@ from pathlib import Path
 # 确保项目根目录在 Python 路径中
 sys.path.insert(0, str(Path(__file__).parent))
 
-from bootstrap import state
-from bootstrap.state import SKILLS_DIR, PROJECT_DIR, WORKDIR
+from runtime import state
+from runtime.state import SKILLS_DIR, PROJECT_DIR, WORKDIR
 from tools.TodoTool import TodoManager
 from services.tasks import TaskManager
 from services.background import BackgroundManager
@@ -24,14 +24,14 @@ from skills.loader import SkillLoader
 from services.permissions import PermissionRules
 from services.mcp import McpManager
 from services.memory import MemoryManager
-from services.llm import LLMAdapter
+from llm.adapter import LLMAdapter
 from agents.task_queue import AgentTaskQueue
-from screens.repl import run_repl
+from ui.repl import run_repl
 
 
 def init():
     """
-    初始化所有全局单例实例，写入 bootstrap.state 模块。
+    初始化所有全局单例实例，写入 runtime.state 模块。
 
     初始化顺序：
     1. LLM 适配器 - 语言模型客户端
