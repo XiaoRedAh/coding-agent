@@ -65,6 +65,7 @@ class LoopResult:
     last_response: Any = None
     tracker: Any = None
     breaker: Any = None
+    turns_used: int = 0     # 实际执行的轮次（可观测性）
 
 
 # ──────────────────────────────────────────────
@@ -220,6 +221,7 @@ class AgentLoop:
                 last_response=resp,
                 tracker=tracker,
                 breaker=breaker,
+                turns_used=max(turn_count - 1, 0),
             )
 
         while True:

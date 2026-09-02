@@ -87,6 +87,21 @@ memory:
   max_index_bytes: 25000         # MEMORY.md 索引最大字节数
   max_memory_files: 200          # 记忆文件总数上限
 
+# ---------- Coordinator 协调者模式 ----------
+coordinator:
+  enabled: false                 # 主 Agent 以 Orchestrator 模式运行（规划-执行分离）
+  allowed_tools:                 # Coordinator 工具白名单（不含 write/edit，不直接改文件）
+    - agent
+    - read_file
+    - list_files
+    - grep_search
+    - run_shell
+
+# ---------- 可观测性（会话 trace）----------
+tracing:
+  enabled: true                  # 记录结构化事件到 .xiaoagent/transcripts/session-*.jsonl
+
+
 # ---------- 环境上下文采集 ----------
 context:
   git_timeout: 3                 # git 命令超时（秒）

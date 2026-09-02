@@ -23,6 +23,7 @@ from runtime import state
 from context.compact import TokenTracker, CircuitBreaker, auto_compact
 from agents.session import agent_loop
 from agents.coordinator import is_coordinator_mode
+from services.tracing import get_tracer
 
 
 def _read_multiline() -> str:
@@ -99,7 +100,7 @@ def run_repl():
     if is_coordinator_mode():
         print("[Coordinator mode] Use agent tool to delegate work.")
 
-    print("\033[90mTips: /edit for multi-line editor | /compact to compress | q to quit\033[0m")
+    print("\033[90mTips: /edit for multi-line editor | /compact to compress | /stats for session stats | q to quit\033[0m")
 
     while True:
         query = _read_multiline()
@@ -113,6 +114,9 @@ def run_repl():
                 print("[manual compact via /compact]")
                 history[:] = auto_compact(history, tracker)
                 breaker.record_success()
+            continue
+        if stripped == "/stats":
+            print(get_tracer().format_summary())
             continue
         if stripped == "/tasks":
             print(state.task_mgr.list_all())

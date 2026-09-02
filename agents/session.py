@@ -11,6 +11,8 @@ S3/S4 重构后，本文件只负责：
 通知收集在 core/notifications.py；终端渲染在 ui/render.py。
 """
 
+import time
+
 from runtime import state
 from runtime.state import WARNING_THRESHOLD, settings
 
@@ -20,6 +22,7 @@ from agents.coordinator import is_coordinator_mode
 from context.builder import PromptBuilder
 from services.permissions import check_permission
 from engine.errors import LoopConfig
+from services.tracing import trace
 from context.compact import (
     TokenTracker, CircuitBreaker,
     run_compression_pipeline, check_and_compact,
@@ -50,6 +53,8 @@ class _MainLoopHooks(LoopHooks):
         self.first_token_received = False
         self.rounds_without_todo = 0
         self.used_todo_this_turn = False
+        self._llm_start_ts = 0.0     # 可观测性：LLM 延迟测量
+        self._tool_start_ts = 0.0    # 可观测性：工具延迟测量
 
     # ── 每轮前置：压缩 + 通知注入 ──
 
@@ -86,6 +91,7 @@ class _MainLoopHooks(LoopHooks):
     def on_llm_start(self, ctx):
         self.first_token_received = False
         self.used_todo_this_turn = False
+        self._llm_start_ts = time.time()
         print(f"\033[90m[turn {ctx.turn_count}] calling llm.chat (stream=True)\033[0m", flush=True)
         self.spinner.start()
 
@@ -104,6 +110,9 @@ class _MainLoopHooks(LoopHooks):
 
     def on_llm_exception(self, ctx, error):
         import traceback
+        latency_ms = round((time.time() - self._llm_start_ts) * 1000, 1) if self._llm_start_ts else None
+        trace("llm_error", turn=ctx.turn_count, latency_ms=latency_ms,
+              error_type=str(getattr(error, "error_type", None) or type(error).__name__))
         print(f"\033[31m[Agent] LLM ERROR: type={type(error).__name__}, "
               f"error_type={getattr(error, 'error_type', None)}, msg={error}\033[0m", flush=True)
         print(f"\033[31m[Agent] Traceback: {traceback.format_exc()[-500:]}\033[0m", flush=True)
@@ -113,6 +122,13 @@ class _MainLoopHooks(LoopHooks):
 
     def on_response(self, ctx, response):
         self.tracker.update_from_response(response)
+        # 可观测性：token 消耗 + LLM 延迟
+        latency_ms = round((time.time() - self._llm_start_ts) * 1000, 1) if self._llm_start_ts else None
+        trace("llm_response", turn=ctx.turn_count,
+              tokens_in=getattr(response, "input_tokens", None),
+              tokens_out=getattr(response, "output_tokens", None),
+              stop_reason=getattr(response, "stop_reason", None),
+              latency_ms=latency_ms)
         if getattr(response, "is_truncated", False):
             print(f"\033[90m[turn {ctx.turn_count}] DETECTED truncation, "
                   f"text_len={len(getattr(response, 'truncated_text', '') or '')}\033[0m", flush=True)
@@ -120,6 +136,13 @@ class _MainLoopHooks(LoopHooks):
     # ── 工具执行（含权限确认） ──
 
     def execute_tool(self, ctx, block) -> str:
+        """执行工具（外层包装：计时 + trace 埋点）。"""
+        self._tool_start_ts = time.time()
+        output = self._execute_tool_inner(ctx, block)
+        self._trace_tool(ctx, block, output)
+        return output
+
+    def _execute_tool_inner(self, ctx, block) -> str:
         if self.first_token_received:
             print()  # 换行
 
@@ -167,6 +190,23 @@ class _MainLoopHooks(LoopHooks):
         except Exception as e:
             return ToolResult.failure(f"Error: {e}", "exception")
 
+    def _trace_tool(self, ctx, block, output) -> None:
+        """可观测性：记录 tool_call 事件；检测并记录 memory_write。"""
+        latency_ms = round((time.time() - self._tool_start_ts) * 1000, 1)
+        ok = getattr(output, "ok", None)
+        if ok is None:
+            ok = not str(output).startswith(("Error:", "<error>", "<tool_use_error>"))
+        trace("tool_call", turn=ctx.turn_count, tool=block.name,
+              ok=bool(ok), latency_ms=latency_ms, result_chars=len(str(output)))
+        # 记忆写入检测：第一层写入引导有效性的直接指标
+        if (block.name in ("write_file", "edit_file")
+                and isinstance(block.input, dict)
+                and state.memory is not None):
+            file_path = block.input.get("file_path", "")
+            if file_path and state.memory.is_memory_path(file_path):
+                trace("memory_write", turn=ctx.turn_count, tool=block.name,
+                      path=str(file_path))
+
     # ── 工具结果后处理 ──
 
     def post_tools(self, ctx, messages, tool_msg):
@@ -183,6 +223,8 @@ class _MainLoopHooks(LoopHooks):
     def maybe_compact(self, ctx, messages):
         compacted = check_and_compact(messages, self.tracker, self.breaker)
         if compacted is not None:
+            trace("compact", turn=ctx.turn_count,
+                  utilization=round(self.tracker.get_utilization(), 3))
             messages[:] = compacted
 
     # ── 截断 ──

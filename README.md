@@ -87,6 +87,7 @@ coding agent/
 │   ├── permissions.py             # ★ 3 层权限控制管线（5 种模式 + 危险检测）
 │   ├── mcp.py                     # ★ MCP 集成（stdio 连接、工具发现、JSON-RPC 通信）
 │   ├── memory.py                  # ★ 跨会话记忆系统（4 种类型，Markdown 存储）
+│   ├── tracing.py                 # ★ 会话事件追踪（JSONL trace + /stats 聚合报告）
 │   ├── tasks.py                   # 持久化任务管理器
 │   └── background.py              # 后台 Shell 管理器
 │
@@ -102,6 +103,7 @@ coding agent/
 │
 ├── prompts/                       # 【提示词体系】三级覆盖：内置 < ~/.xiaoagent/prompts < .xiaoagent/prompts
 │   ├── base.md                    # ★ 主 System Prompt 模板（动静分离，Prompt Cache 友好）
+│   ├── coordinator.md             # Coordinator（Orchestrator）模式提示词
 │   ├── fragments/memory.md        # ★ 记忆指令片段（含主动写入引导：任务完成/偏好/决策/纠正）
 │   ├── workflow/                  # 工作流角色 Prompt 模板（analyst/engineer/tester.md）
 │   └── loader.py                  # ★ 提示词资产加载器（三级覆盖 + 新增资产）

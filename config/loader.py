@@ -116,6 +116,17 @@ class MemorySettings:
 
 
 @dataclass(frozen=True)
+class CoordinatorSettings:
+    enabled: bool = False
+    allowed_tools: tuple = ("agent", "read_file", "list_files", "grep_search", "run_shell")
+
+
+@dataclass(frozen=True)
+class TracingSettings:
+    enabled: bool = True
+
+
+@dataclass(frozen=True)
 class ContextSettings:
     git_timeout: int = 3
 
@@ -140,6 +151,8 @@ class Settings:
     shell: ShellSettings = field(default_factory=ShellSettings)
     tools: ToolSettings = field(default_factory=ToolSettings)
     memory: MemorySettings = field(default_factory=MemorySettings)
+    coordinator: CoordinatorSettings = field(default_factory=CoordinatorSettings)
+    tracing: TracingSettings = field(default_factory=TracingSettings)
     context: ContextSettings = field(default_factory=ContextSettings)
     paths: PathSettings = field(default_factory=PathSettings)
 
@@ -154,6 +167,8 @@ _SECTION_TYPES = {
     "shell": ShellSettings,
     "tools": ToolSettings,
     "memory": MemorySettings,
+    "coordinator": CoordinatorSettings,
+    "tracing": TracingSettings,
     "context": ContextSettings,
     "paths": PathSettings,
 }

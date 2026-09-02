@@ -28,6 +28,7 @@ from engine.errors import (
 )
 from engine.loop import AgentLoop, LoopSpec, LoopHooks
 from engine.results import ToolResult
+from services.tracing import trace
 
 
 class _SubAgentHooks(LoopHooks):
@@ -45,21 +46,37 @@ class _SubAgentHooks(LoopHooks):
         self._status(f"turn {ctx.turn_count}/{ctx.max_turns}: waiting llm")
 
     def execute_tool(self, ctx, block) -> str:
+        t0 = time.time()
         self._status(f"turn {ctx.turn_count}/{ctx.max_turns}: tool {block.name}")
         handler = self.tool_handlers.get(block.name)
         block_input = block.input
 
         # llm.py 层注入的 JSON 解析错误标记
         if isinstance(block_input, dict) and "_json_parse_error" in block_input:
-            return ToolResult.failure(
+            output = ToolResult.failure(
                 f"Error: JSON parse failed - {block_input['_json_parse_error']}",
                 "json_parse_error")
+            self._trace(ctx, block, output, t0)
+            return output
         if not handler:
-            return ToolResult.failure(f"Unknown tool: {block.name}", "unknown_tool")
+            output = ToolResult.failure(f"Unknown tool: {block.name}", "unknown_tool")
+            self._trace(ctx, block, output, t0)
+            return output
         try:
-            return truncate_result(str(handler(**block_input)))
+            output = truncate_result(str(handler(**block_input)))
         except Exception as e:
-            return ToolResult.failure(f"Error: {e}", "exception")
+            output = ToolResult.failure(f"Error: {e}", "exception")
+        self._trace(ctx, block, output, t0)
+        return output
+
+    @staticmethod
+    def _trace(ctx, block, output, t0) -> None:
+        """可观测性：子 Agent 的 tool_call 事件。"""
+        ok = getattr(output, "ok", None)
+        trace("tool_call", turn=ctx.turn_count, tool=block.name,
+              ok=bool(ok) if ok is not None else True,
+              latency_ms=round((time.time() - t0) * 1000, 1),
+              result_chars=len(str(output)))
 
 
 def _run_agent_loop(
@@ -88,8 +105,13 @@ def _run_agent_loop(
         stream=False,
     )
 
+    t0 = time.time()
+    trace("agent_spawn", agent_type=agent_type)
     loop = AgentLoop(state.llm, spec, hooks)
     result = loop.run(messages)
+    trace("agent_done", agent_type=agent_type, turns=result.turns_used,
+          latency_ms=round((time.time() - t0) * 1000, 1),
+          stop_reason=result.stop_reason)
 
     # ── 映射为旧的字符串返回约定 ──
     if result.stop_reason == "tool_errors":
