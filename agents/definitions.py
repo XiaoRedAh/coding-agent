@@ -24,6 +24,15 @@ GENERAL_TOOLS = frozenset({
     # 注意：不包含 "agent"，防止子 Agent 递归创建子 Agent
 })
 
+# 主 Agent 专属工具：即使自定义 Agent 的 YAML 把它们写进 allowed_tools
+# 也会被强制剔除（get_filtered_tools 层兜底）：
+# - TodoWrite：state.todo 是全局单例，子 Agent 写入会覆写主 Agent 的计划清单
+# - run_workflow：防止子 Agent（如 workflow 角色用的 general）嵌套启动 workflow 造成递归
+MAIN_AGENT_ONLY_TOOLS = frozenset({
+    "TodoWrite",
+    "run_workflow",
+})
+
 # ──────────────────────────────────────────────
 #  注册表接入（内置 + 用户自定义统一来源）
 # ──────────────────────────────────────────────
@@ -44,12 +53,15 @@ def get_filtered_tools(allowed_tools: frozenset) -> tuple[list, dict]:
     """
     从全局工具注册表中过滤出指定的工具子集。
 
+    主 Agent 专属工具（MAIN_AGENT_ONLY_TOOLS）被强制剔除——
+    自定义 Agent YAML 中的声明不生效。
     使用延迟导入避免 tools/ ↔ agents/ 的循环依赖。
     返回 (tool_definitions, tool_handlers) 元组。
     """
     from tools import get_all_definitions, get_all_handlers
+    allowed = frozenset(allowed_tools) - MAIN_AGENT_ONLY_TOOLS
     all_defs = get_all_definitions()
     all_handlers = get_all_handlers()
-    defs = [d for d in all_defs if d["name"] in allowed_tools]
-    handlers = {k: v for k, v in all_handlers.items() if k in allowed_tools}
+    defs = [d for d in all_defs if d["name"] in allowed]
+    handlers = {k: v for k, v in all_handlers.items() if k in allowed}
     return defs, handlers

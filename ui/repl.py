@@ -134,6 +134,8 @@ def run_repl():
             continue
         if stripped == "/stats":
             print(get_tracer().format_summary())
+            if state.todo and state.todo.items:
+                print(f"  Todos ({len(state.todo.items)} items):\n{state.todo.render()}")
             continue
         if stripped == "/tasks":
             print(state.task_mgr.list_all())

@@ -105,6 +105,7 @@ class ToolSettings:
     grep_max_matches: int = 100
     grep_timeout: int = 10
     todo_max_items: int = 20
+    todo_reminder_rounds: int = 3
     skill_description_max_chars: int = 250
 
 

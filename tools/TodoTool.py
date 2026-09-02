@@ -11,10 +11,12 @@ from runtime.state import settings
 DEFINITION = {
     "name": "TodoWrite",
     "description": (
-        "Update the task tracking checklist (in-memory, session-scoped). "
+        "Update the task plan / checklist (in-memory, session-scoped). "
         "This REPLACES the entire list — include all items you want to keep. "
         "Max 20 items, only 1 can be in_progress at a time. "
-        "Use for tracking progress on multi-step work within a conversation."
+        "Use when starting complex or multi-step work (plan first, then "
+        "execute step by step), when the plan changes, or when completing "
+        "items — not for simple single-step tasks."
     ),
     "input_schema": {
         "type": "object",

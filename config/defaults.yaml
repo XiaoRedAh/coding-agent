@@ -79,6 +79,7 @@ tools:
   grep_max_matches: 100          # grep_search 最多返回匹配行数
   grep_timeout: 10               # grep_search 超时（秒）
   todo_max_items: 20             # Todo 列表最大条数
+  todo_reminder_rounds: 3        # 连续几轮未更新 Todo 后注入提醒
   skill_description_max_chars: 250  # 技能简介截断长度
 
 # ---------- 记忆系统 ----------

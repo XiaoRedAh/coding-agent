@@ -213,10 +213,17 @@ class _MainLoopHooks(LoopHooks):
         self.tracker.track_new_message(tool_msg)
 
         # Todo reminder：有未完成待办但连续多轮未更新时提醒
+        # （附当前清单内容，避免 LLM 翻上下文考古）
         self.rounds_without_todo = 0 if self.used_todo_this_turn else self.rounds_without_todo + 1
-        if state.todo and state.todo.has_open_items() and self.rounds_without_todo >= 3:
-            tool_msg["content"].append(
-                {"type": "text", "text": "<reminder>Update your todos.</reminder>"})
+        if (state.todo and state.todo.has_open_items()
+                and self.rounds_without_todo >= settings.tools.todo_reminder_rounds):
+            tool_msg["content"].append({
+                "type": "text",
+                "text": (
+                    "<reminder>Update your todos.</reminder>\n"
+                    f"Current todo list:\n{state.todo.render()}"
+                ),
+            })
 
     # ── 压缩检查点 ──
 
