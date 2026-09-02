@@ -81,6 +81,7 @@ coding agent/
 │   ├── GrepSearchTool.py          # 内容搜索（纯 Python，跨平台）
 │   ├── AgentTool.py               # SubAgent 统一入口（type enum 动态反映注册表）
 │   ├── SkillTool.py               # 技能按需加载
+│   ├── WorkflowTool.py            # SOP 工作流工具（agent 自主选择，无需预选模式）
 │   ├── TodoTool.py                # 内存待办清单
 │   └── TaskTool.py                # 持久化任务 CRUD（5 个操作）
 │

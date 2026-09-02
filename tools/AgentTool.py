@@ -46,8 +46,9 @@ def get_definition() -> dict:
                 "run_in_background": {
                     "type": "boolean",
                     "description": (
-                        "Run asynchronously in background. You'll receive a "
-                        "<task-notification> when done. Use for long-running tasks."
+                        "Run asynchronously in background (parallel, result arrives "
+                        "later as <task-notification>). ONLY for independent tasks; "
+                        "order-dependent tasks must use synchronous execution."
                     ),
                 },
             },

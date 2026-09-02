@@ -71,12 +71,20 @@ def _make_tool_use(tool_use_id: str, name: str, inp: dict) -> dict:
     }
 
 
-def _make_messages_with_tool_results(n: int, content_size: int = 200) -> list:
-    """Create n pairs of tool_use + tool_result messages."""
+def _make_messages_with_tool_results(n: int, content_size: int = 200, n_files: int = 0) -> list:
+    """Create n pairs of tool_use + tool_result messages.
+
+    n_files=0: 每次读不同文件（file_0..file_{n-1}）——最新读取语义下全保留。
+    n_files>0: 只在 n_files 个文件间循环重复读取——旧读取会被 snip。
+    """
     msgs = []
     for i in range(n):
         tid = f"tu_{i}"
-        msgs.append(_make_tool_use(tid, "read_file", {"file_path": f"file_{i}.py"}))
+        if n_files > 0:
+            fpath = f"file_{i % n_files}.py"
+        else:
+            fpath = f"file_{i}.py"
+        msgs.append(_make_tool_use(tid, "read_file", {"file_path": fpath}))
         msgs.append(_make_tool_result(tid, "x" * content_size))
     return msgs
 
@@ -184,8 +192,9 @@ def evaluate_snip() -> EvalResult:
                           for b in m["content"] if isinstance(b, dict) and b.get("type") == "tool_result"))
     r.record(snipped == 0, "below threshold no snip", "0", str(snipped))
 
-    # 3.2 Above threshold — keeps recent SNIP_KEEP_RECENT
-    msgs = _make_messages_with_tool_results(8, 500)
+    # 3.2 Above threshold — duplicate reads of the same file get snipped
+    # （L2 语义：每个文件只保留最新一次读取 + 最近 SNIP_KEEP_RECENT 个结果）
+    msgs = _make_messages_with_tool_results(8, 500, n_files=2)
     snip_stale_results(msgs, 0.65)
     tool_results = []
     for m in msgs:
@@ -200,6 +209,15 @@ def evaluate_snip() -> EvalResult:
     # 3.3 Snipped ones have placeholder
     snipped_blocks = [b for b in tool_results if b.get("content") == SNIP_PLACEHOLDER]
     r.record(len(snipped_blocks) > 0, "some blocks snipped", ">0", str(len(snipped_blocks)))
+
+    # 3.3b Unique file reads are all kept (each is the latest read of its file)
+    msgs = _make_messages_with_tool_results(8, 500)
+    snip_stale_results(msgs, 0.65)
+    unique_snipped = sum(1 for m in msgs if m.get("role") == "user"
+                         and isinstance(m.get("content"), list)
+                         and any(b.get("content") == SNIP_PLACEHOLDER
+                                 for b in m["content"] if isinstance(b, dict) and b.get("type") == "tool_result"))
+    r.record(unique_snipped == 0, "unique latest reads all kept", "0", str(unique_snipped))
 
     # 3.4 Too few results — no snipping
     msgs = _make_messages_with_tool_results(2, 500)

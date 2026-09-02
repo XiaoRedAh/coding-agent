@@ -80,12 +80,43 @@ class WorkflowEngine:
                     flush=True,
                 )
                 # 角色执行后会产出新的结构化消息，继续发布到总线
-                produced = runtimes[role.name].execute(
-                    requirement=requirement,
-                    incoming_messages=incoming,
-                    fix_round=fix_round,
-                    max_fix_rounds=cfg.max_fix_rounds,
-                )
+                # （异常兜底：单个角色崩溃不应炸掉整个 workflow）
+                try:
+                    produced = runtimes[role.name].execute(
+                        requirement=requirement,
+                        incoming_messages=incoming,
+                        fix_round=fix_round,
+                        max_fix_rounds=cfg.max_fix_rounds,
+                    )
+                except Exception as exc:
+                    print(
+                        f"\033[31m[Workflow]\033[0m role={role.name} crashed: {exc}",
+                        flush=True,
+                    )
+                    failed = StructuredMessage(
+                        message_id=f"msg-{uuid.uuid4().hex[:12]}",
+                        schema_version=cfg.schema_version,
+                        topic="workflow.failed",
+                        sent_from=role.name,
+                        send_to=[],
+                        cause_by=f"{role.name}.exception",
+                        payload={
+                            "error": str(exc)[:500],
+                            "role": role.name,
+                        },
+                        artifact_refs=[],
+                        status="fail",
+                    )
+                    bus.publish(failed)
+                    return WorkflowRunResult(
+                        status=WorkflowStatus.FAILED,
+                        workflow_id=cfg.workflow_id,
+                        requirement=requirement,
+                        summary=f"Role {role.name} crashed: {str(exc)[:200]}",
+                        terminal_topic="workflow.failed",
+                        generated_artifacts=sorted(set(generated_artifacts)),
+                        event_log=bus.event_log,
+                    )
                 for msg in produced:
                     generated_artifacts.extend(msg.artifact_refs)
                     bus.publish(msg)

@@ -17,6 +17,7 @@ services/compact.py - 五级渐进式压缩系统
 import json
 import re
 import time
+from pathlib import Path
 
 from runtime import state as _state
 from runtime.state import (
@@ -94,7 +95,7 @@ class TokenTracker:
 
     使用"锚点 + 增量"策略：
     - 锚点：API 返回的 usage.input_tokens（服务端精确计算）
-    - 增量：锚点之后新增消息的粗略估算（字符数 / 3）
+    - 增量：锚点之后新增消息的粗略估算（CJK 混合系数，见 _estimate_tokens）
 
     这比纯客户端估算精确得多（误差 <5% vs >30%），且零额外 API 调用。
     """
@@ -105,7 +106,7 @@ class TokenTracker:
         self.total_output_tokens = 0    # 累计 output tokens
         self.last_api_call_time = 0.0   # 最近一次 API 调用时间戳
         self.messages_since_anchor = 0  # 锚点之后新增的消息数
-        self._new_chars_since_anchor = 0  # 锚点之后新增的字符数
+        self._new_tokens_since_anchor = 0  # 锚点之后新增的估算 token
 
     def update_from_response(self, response):
         """从 API 响应中更新 token 统计（锚点更新）。
@@ -125,19 +126,20 @@ class TokenTracker:
         self.total_output_tokens += out
         self.last_api_call_time = time.time()
         self.messages_since_anchor = 0
-        self._new_chars_since_anchor = 0
+        self._new_tokens_since_anchor = 0
 
     def track_new_message(self, message):
         """追踪锚点之后新增的消息"""
         self.messages_since_anchor += 1
-        self._new_chars_since_anchor += len(json.dumps(message, default=str))
+        self._new_tokens_since_anchor += _estimate_tokens(
+            json.dumps(message, default=str))
 
     def estimate_current_tokens(self) -> int:
         """估算当前 token 用量 = 锚点值 + 新消息估算"""
         if self.last_input_tokens == 0:
             # 会话刚开始，无锚点，纯粗略估算
-            return self._new_chars_since_anchor // 3
-        return self.last_input_tokens + (self._new_chars_since_anchor // 3)
+            return self._new_tokens_since_anchor
+        return self.last_input_tokens + self._new_tokens_since_anchor
 
     def get_utilization(self) -> float:
         """返回当前上下文利用率（0.0 ~ 1.0+）"""
@@ -147,7 +149,21 @@ class TokenTracker:
         """压缩后重置锚点"""
         self.last_input_tokens = 0
         self.messages_since_anchor = 0
-        self._new_chars_since_anchor = 0
+        self._new_tokens_since_anchor = 0
+
+
+def _estimate_tokens(text: str) -> int:
+    """粗略 token 估算，CJK 感知。
+
+    - ASCII 文本约 3 字符/token（历史行为，保持兼容）
+    - CJK 文本约 1.5 字符/token（中文实际 token 约为 chars/3 估算的 2 倍，
+      旧系数会系统性低估中文会话的利用率，导致压缩触发过晚）
+    """
+    if not text:
+        return 0
+    cjk = sum(1 for ch in text if '\u4e00' <= ch <= '\u9fff')
+    non_cjk = len(text) - cjk
+    return int(cjk / 1.5 + non_cjk / 3)
 
 
 # ──────────────────────────────────────────────
@@ -237,8 +253,9 @@ def snip_stale_results(messages: list, utilization: float):
     替换过时的工具结果为占位符。
 
     策略：
-    1. 同一文件被 read_file 多次 → snip 旧的（只保留最新读取）
-    2. 永远保留最近 3 个 tool_result（可能正在被引用）
+    1. 同一文件被 read_file 多次 → snip 旧的（每个文件只保留最新一次读取，
+       即使最新读取早于"最近 N 个"窗口）
+    2. 永远保留最近 SNIP_KEEP_RECENT 个 tool_result（可能正在被引用）
     3. 只清 tool_result 的 content，保留 tool_use block
 
     Args:
@@ -267,15 +284,20 @@ def snip_stale_results(messages: list, utilization: float):
     # 1. 保留最近 SNIP_KEEP_RECENT 个
     candidates = tool_results[:-SNIP_KEEP_RECENT]
 
-    # 2. 同一文件的重复读取 → snip 旧的
-    seen_files = set()
-    # 从后往前扫描，标记最新的同文件读取
+    # 2. 每个文件的最新一次读取不在 snip 范围内（从后往前找首个）
+    latest_file_read: dict[str, int] = {}   # file_path -> id(block)
     for block, name, inp, _ in reversed(tool_results):
         if name == "read_file" and isinstance(inp, dict):
             fpath = inp.get("file_path", inp.get("path", ""))
-            seen_files.add(fpath)
+            if fpath and fpath not in latest_file_read:
+                latest_file_read[fpath] = id(block)
 
     for block, name, inp, _ in candidates:
+        # 同文件的最新读取保留（内容仍是当前版本，后续轮次大概率还要引用）
+        if name == "read_file" and isinstance(inp, dict):
+            fpath = inp.get("file_path", inp.get("path", ""))
+            if fpath and latest_file_read.get(fpath) == id(block):
+                continue
         content = block.get("content", "")
         if isinstance(content, str) and len(content) > 100:
             block["content"] = SNIP_PLACEHOLDER
@@ -403,14 +425,87 @@ def auto_compact(messages: list, tracker: TokenTracker) -> list:
         },
     ]
 
+    # 恢复最近读取的文件（摘要中的文件描述往往不足以继续编辑代码）
+    restored = _restore_recent_files(messages, new_messages)
+    if restored:
+        print(f"[autocompact] restored {restored} recently-read files")
+
     # 恢复最后一条用户消息
     if last_user_msg:
         new_messages.append(last_user_msg)
 
-    # 6. 重置 token 追踪
+    # 6. 重置 token 追踪并登记重建后的消息（重估利用率）
     tracker.reset_after_compact()
+    for msg in new_messages:
+        tracker.track_new_message(msg)
 
     return new_messages
+
+
+def _collect_recent_files(messages: list, max_files: int) -> list[str]:
+    """从消息中收集最近读取的文件路径（去重，最新优先）。"""
+    paths: list[str] = []
+    seen: set[str] = set()
+    for msg in reversed(messages):
+        if msg.get("role") != "assistant":
+            continue
+        content = msg.get("content", [])
+        if not isinstance(content, list):
+            continue
+        for block in content:
+            name = getattr(block, "name", None)
+            if name is None and isinstance(block, dict):
+                name = block.get("name")
+            if name != "read_file":
+                continue
+            inp = getattr(block, "input", None)
+            if inp is None and isinstance(block, dict):
+                inp = block.get("input")
+            fpath = inp.get("file_path", "") if isinstance(inp, dict) else ""
+            if fpath and fpath not in seen:
+                seen.add(fpath)
+                paths.append(fpath)
+        if len(paths) >= max_files:
+            break
+    # 返回时间正序（旧 → 新），恢复时保持阅读顺序
+    return list(reversed(paths))
+
+
+def _restore_recent_files(messages: list, new_messages: list) -> int:
+    """把最近读取的文件内容回填到压缩后的上下文。
+
+    插在摘要之后、assistant 确认之前。每文件截断到
+    POST_COMPACT_MAX_TOKENS_PER_FILE 估算 token（~3 字符/token）。
+    Returns:
+        成功恢复的文件数
+    """
+    paths = _collect_recent_files(messages, POST_COMPACT_MAX_FILES)
+    if not paths:
+        return 0
+    max_chars = POST_COMPACT_MAX_TOKENS_PER_FILE * 3
+    parts = []
+    restored = 0
+    for fpath in paths:
+        try:
+            text = Path(fpath).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        if not text.strip():
+            continue
+        if len(text) > max_chars:
+            text = text[:max_chars] + "\n[... file truncated ...]"
+        parts.append(f"### {fpath}\n```\n{text}\n```")
+        restored += 1
+    if not parts:
+        return 0
+    new_messages.insert(1, {
+        "role": "user",
+        "content": (
+            "[Recently read files restored after compaction]\n\n"
+            + "\n\n".join(parts)
+        ),
+    })
+    return restored
 
 
 def _extract_summary(raw_output: str) -> str:

@@ -131,14 +131,22 @@ def run_subagent(
     agent_type: str = "general",
     description: str = "",
     status_callback=None,
+    system_prompt_override: str | None = None,
 ) -> str:
-    """同步子代理：阻塞主 Agent 直到完成。"""
+    """同步子代理：阻塞主 Agent 直到完成。
+
+    Args:
+        system_prompt_override: 显式替换该 agent 的系统提示词
+            （保留工具白名单与 max_turns）。Workflow 角色执行用：
+            避免角色模板与内置 agent 提示词的输出格式指令冲突。
+    """
     config = get_agent_config(agent_type)
     tool_defs, tool_handlers = get_filtered_tools(config["allowed_tools"])
     messages = [{"role": "user", "content": prompt}]
 
     result = _run_agent_loop(
-        config["system_prompt"], messages, tool_defs, tool_handlers,
+        system_prompt_override if system_prompt_override is not None else config["system_prompt"],
+        messages, tool_defs, tool_handlers,
         config["max_turns"],
         agent_type,
         status_callback=status_callback,

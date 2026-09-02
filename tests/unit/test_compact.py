@@ -111,26 +111,40 @@ class TestBudgetToolResults:
 
 
 class TestSnipStaleResults:
-    def _make_messages(self, n_results):
+    def _make_messages(self, n_results, file_paths=None):
         msgs = []
         for i in range(n_results):
             # Use dicts for assistant content (matching how _find_tool_use checks isinstance(block, dict))
+            fpath = (file_paths[i] if file_paths else f"f{i}.py")
             msgs.append({"role": "assistant", "content": [
-                {"type": "tool_use", "id": f"t{i}", "name": "read_file", "input": {"file_path": f"f{i}.py"}}
+                {"type": "tool_use", "id": f"t{i}", "name": "read_file", "input": {"file_path": fpath}}
             ]})
             msgs.append({"role": "user", "content": [
-                {"type": "tool_result", "tool_use_id": f"t{i}", "content": f"content of file {i}" * 20}
+                {"type": "tool_result", "tool_use_id": f"t{i}", "content": f"content of {fpath} " * 20}
             ]})
         return msgs
 
-    def test_keeps_recent_3(self):
+    def test_snips_duplicate_reads(self):
+        """同文件多次读取 → 旧的被 snip（保留每个文件的最新读取）。"""
+        # f0 读 3 次 + f1 读 3 次 = 6 个结果，超过 keep_recent=3 的窗口
+        paths = ["f0.py"] * 3 + ["f1.py"] * 3
+        msgs = self._make_messages(6, file_paths=paths)
+        snip_stale_results(msgs, 0.65)
+        snipped = sum(1 for m in msgs if m["role"] == "user"
+                      and isinstance(m.get("content"), list)
+                      and any(b.get("content", "").startswith("[Content snipped")
+                              for b in m["content"] if isinstance(b, dict) and b.get("type") == "tool_result"))
+        assert snipped >= 2  # 每个文件的旧读取（t0,t1 / t3,t4）至少部分被 snip
+
+    def test_unique_file_reads_all_kept(self):
+        """不同文件各读一次（无重复）→ 全部保留（都是当前版本）。"""
         msgs = self._make_messages(6)
         snip_stale_results(msgs, 0.65)
         snipped = sum(1 for m in msgs if m["role"] == "user"
                       and isinstance(m.get("content"), list)
                       and any(b.get("content", "").startswith("[Content snipped")
                               for b in m["content"] if isinstance(b, dict) and b.get("type") == "tool_result"))
-        assert snipped >= 1  # at least some were snipped
+        assert snipped == 0
 
     def test_below_threshold_no_snip(self):
         msgs = self._make_messages(6)

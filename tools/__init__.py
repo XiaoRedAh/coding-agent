@@ -10,7 +10,7 @@ AgentTool 是统一入口（SubAgent），TaskTool 负责任务管理。
 from tools import (
     BashTool, FileReadTool, FileWriteTool, FileEditTool,
     ListFilesTool, GrepSearchTool,
-    TodoTool, TaskTool, AgentTool, SkillTool,
+    TodoTool, TaskTool, AgentTool, SkillTool, WorkflowTool,
 )
 from runtime import state
 
@@ -24,6 +24,7 @@ def get_all_definitions() -> list:
     defs.append(AgentTool.get_definition())  # 动态：含自定义 agent 类型
     defs.append(SkillTool.DEFINITION)
     defs.append(TodoTool.DEFINITION)
+    defs.append(WorkflowTool.DEFINITION)
     defs.extend(TaskTool.DEFINITIONS)
 
     if state.mcp:
@@ -45,6 +46,7 @@ def get_all_handlers() -> dict:
             kw.get("run_in_background", False),
         ),
         "load_skill":   lambda **kw: SkillTool.handle(kw["name"], kw.get("args", "")),
+        "run_workflow": lambda **kw: WorkflowTool.handle(kw["requirement"], kw.get("workflow_id", "metagpt-lite-3role")),
         "TodoWrite":    lambda **kw: state.todo.update(kw["items"]),
     }
     handlers.update(TaskTool.get_handlers())
