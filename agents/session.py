@@ -23,6 +23,7 @@ from context.builder import PromptBuilder
 from services.permissions import check_permission
 from engine.errors import LoopConfig
 from services.tracing import trace
+from ui.console import fail_sym
 from context.compact import (
     TokenTracker, CircuitBreaker,
     run_compression_pipeline, check_and_compact,
@@ -73,9 +74,9 @@ class _MainLoopHooks(LoopHooks):
             messages.append(msg)
             self.tracker.track_new_message(msg)
 
-        # 异步 Agent 通知（含 Coordinator 等待逻辑）
+        # 异步 Agent 通知（含等待逻辑：普通模式与 Coordinator 统一语义）
         if state.agent_tasks:
-            coordinator_mode = is_coordinator_mode()
+            coordinator_mode = True  # 等待语义统一：有 in_flight 即等待
             content, skip_llm = process_agent_notifications(
                 state, coordinator_mode, settings.loop.coordinator_wait_timeout)
             if content:
@@ -85,6 +86,12 @@ class _MainLoopHooks(LoopHooks):
             if skip_llm:
                 return True
         return False
+
+    def has_pending_work(self, messages) -> bool:
+        """等待闭环：end_turn 时仍有后台子 Agent 在飞 → 不结束回合。"""
+        if not state.agent_tasks:
+            return False
+        return state.agent_tasks.get_in_flight() > 0
 
     # ── LLM 调用生命周期 ──
 
@@ -152,7 +159,7 @@ class _MainLoopHooks(LoopHooks):
         if perm["action"] == "deny":
             output = ToolResult.failure(
                 f"Permission denied: {perm['reason']}", "permission_denied")
-            print(f"\033[31m  ✗ {block.name}: DENIED ({perm['reason']})\033[0m")
+            print(f"\033[31m  {fail_sym()} {block.name}: DENIED ({perm['reason']})\033[0m")
             return output
 
         if perm["action"] == "confirm":
@@ -166,7 +173,7 @@ class _MainLoopHooks(LoopHooks):
             else:
                 output = ToolResult.failure(
                     "User denied this action.", "permission_denied")
-                print(f"\033[31m  ✗ {block.name}: USER DENIED\033[0m")
+                print(f"\033[31m  {fail_sym()} {block.name}: USER DENIED\033[0m")
             return output
 
         # allow
@@ -191,7 +198,7 @@ class _MainLoopHooks(LoopHooks):
             return ToolResult.failure(f"Error: {e}", "exception")
 
     def _trace_tool(self, ctx, block, output) -> None:
-        """可观测性：记录 tool_call 事件；检测并记录 memory_write。"""
+        """可观测性：记录 tool_call 事件；检测并记录 memory_write / skill_load。"""
         latency_ms = round((time.time() - self._tool_start_ts) * 1000, 1)
         ok = getattr(output, "ok", None)
         if ok is None:
@@ -206,6 +213,19 @@ class _MainLoopHooks(LoopHooks):
             if file_path and state.memory.is_memory_path(file_path):
                 trace("memory_write", turn=ctx.turn_count, tool=block.name,
                       path=str(file_path))
+        # 记忆读取检测（读 MEMORY 索引或记忆文件）
+        if (block.name == "read_file"
+                and isinstance(block.input, dict)
+                and state.memory is not None):
+            file_path = block.input.get("file_path", "")
+            if file_path and state.memory.is_memory_path(file_path):
+                trace("memory_read", turn=ctx.turn_count, path=str(file_path))
+        # 技能加载检测
+        if (block.name == "load_skill" and isinstance(block.input, dict)):
+            trace("skill_load", turn=ctx.turn_count,
+                  skill=str(block.input.get("name", "")),
+                  args=str(block.input.get("args", ""))[:100],
+                  invoked_via="tool")
 
     # ── 工具结果后处理 ──
 
@@ -294,6 +314,7 @@ def agent_loop(
         max_consecutive_llm_errors=LoopConfig.MAX_CONSECUTIVE_LLM_ERRORS,
         llm_timeout=settings.llm.timeout_seconds,
         stream=True,
+        wait_for_pending=True,   # 等待闭环：后台任务未完成不结束回合
     )
 
     loop = AgentLoop(state.llm, spec, hooks)

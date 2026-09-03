@@ -54,6 +54,11 @@ class Tracer:
         self._lock = threading.Lock()
         self._events: list[dict] = []          # 内存副本（聚合报告用）
         self._path: Path | None = path
+        # agent 归属上下文（span）：标识当前事件的发出者。
+        # 主 agent = "main"；子 agent 在 _run_agent_loop 里设为 "agent-{N}"
+        # （按 spawn 顺序编号）。子 agent 的 tool_call/llm 事件由此可辨。
+        self._agent_ctx: str = "main"
+        self._agent_seq: int = 0               # 子 agent 计数器
         if enabled is not None:
             self._enabled = enabled
         elif path is not None:
@@ -96,7 +101,8 @@ class Tracer:
         """追加一个事件。任何内部异常都吞掉（追踪不能打断主流程）。"""
         if not self._enabled:
             return
-        entry = {"event": name, "ts": round(_now_ts(), 3), **fields}
+        entry = {"event": name, "ts": round(_now_ts(), 3),
+                 "agent": self._agent_ctx, **fields}
         self._events.append(entry)
         try:
             with self._lock:
@@ -104,6 +110,18 @@ class Tracer:
                     f.write(json.dumps(entry, ensure_ascii=False, default=str) + "\n")
         except (OSError, ValueError, TypeError):
             pass
+
+    # ── agent 归属上下文 ──
+
+    def enter_agent(self) -> str:
+        """进入子 agent 上下文，返回分配的 agent 标识。"""
+        self._agent_seq += 1
+        self._agent_ctx = f"agent-{self._agent_seq}"
+        return self._agent_ctx
+
+    def exit_agent(self) -> None:
+        """回到主 agent 上下文。"""
+        self._agent_ctx = "main"
 
     # ── 聚合报告 ──
 
@@ -115,6 +133,7 @@ class Tracer:
         llm_errors = [e for e in events if e["event"] == "llm_error"]
         tool_calls = [e for e in events if e["event"] == "tool_call"]
         memory_writes = [e for e in events if e["event"] == "memory_write"]
+        skill_loads = [e for e in events if e["event"] == "skill_load"]
         compacts = [e for e in events if e["event"] == "compact"]
         agents = [e for e in events if e["event"] == "agent_done"]
 
@@ -139,6 +158,10 @@ class Tracer:
             "tool_calls": len(tool_calls),
             "tools": tools,
             "memory_writes": len(memory_writes),
+            "skill_loads": [
+                {"skill": e.get("skill"), "via": e.get("invoked_via", "tool")}
+                for e in skill_loads
+            ],
             "compacts": len(compacts),
             "agents": [
                 {"agent_type": e.get("agent_type"), "turns": e.get("turns"),
@@ -164,6 +187,10 @@ class Tracer:
                 f"    {name}: {t['count']}x, {t['errors']} err, "
                 f"{t['total_ms']/1000:.1f}s")
         lines.append(f"  Memory writes: {s['memory_writes']}")
+        if s["skill_loads"]:
+            detail = ", ".join(
+                f"{k['skill']} via {k['via']}" for k in s["skill_loads"])
+            lines.append(f"  Skills loaded: {len(s['skill_loads'])} ({detail})")
         lines.append(f"  Compactions: {s['compacts']}")
         if s["agents"]:
             lines.append(f"  Sub-agents: {len(s['agents'])}")

@@ -10,6 +10,8 @@ core/notifications.py - 通知收集（S4 从 query.py 拆出）
 
 from __future__ import annotations
 
+from ui.console import ok_sym
+
 
 def collect_bg_notifications(state) -> str | None:
     """
@@ -61,7 +63,7 @@ def process_agent_notifications(
 
     parts = []
     for n in agent_notifs:
-        print(f"\033[35m  ✓ Agent [{n['agent_type']}] {n['status']}\033[0m")
+        print(f"\033[35m  {ok_sym()} Agent [{n['agent_type']}] {n['status']}\033[0m")
         parts.append(
             f"<task-notification>\n"
             f"  <task-id>{n['task_id']}</task-id>\n"

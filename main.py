@@ -26,6 +26,7 @@ from services.mcp import McpManager
 from services.memory import MemoryManager
 from llm.adapter import LLMAdapter
 from agents.task_queue import AgentTaskQueue
+from ui.console import setup_console
 from ui.repl import run_repl
 
 
@@ -64,6 +65,7 @@ def init():
 
 def main():
     """程序入口：初始化 → 启动 REPL → 清理"""
+    setup_console()  # Windows conhost 启用 VT 颜色处理（否则 ANSI 码显示为方块）
     init()
     try:
         run_repl()

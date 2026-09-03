@@ -179,6 +179,7 @@ class TestAgentLoopNotifications:
             0,
         )
         mock_agent_tasks.wait_and_drain.return_value = ([], 0)
+        mock_agent_tasks.get_in_flight.return_value = 0  # 无在飞任务（等待闭环判定）
         mock_state.agent_tasks = mock_agent_tasks
         mock_llm.chat.return_value = _mock_response()
         from agents.session import agent_loop

@@ -126,7 +126,7 @@ class TestReplGuard:
         monkeypatch.setattr(repl_mod, "agent_loop", exploding_loop)
 
         # 模拟用户输入一次后退出
-        inputs = iter(["do something", "q"])
+        inputs = iter(["do something", "/exit"])
         monkeypatch.setattr("builtins.input", lambda *a: next(inputs))
 
         repl_mod.run_repl()  # 不应抛异常

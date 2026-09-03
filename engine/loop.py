@@ -55,6 +55,7 @@ class LoopSpec:
     max_consecutive_llm_errors: int = 3
     llm_timeout: Optional[float] = None   # None 表示不做线程级超时护栏
     stream: bool = False                  # 主 Agent 流式输出
+    wait_for_pending: bool = False        # end_turn 前等待后台任务完成（主 Agent 用）
 
 
 @dataclass
@@ -78,6 +79,14 @@ class LoopHooks:
 
     def pre_turn(self, ctx: LoopContext, messages: list, tracker) -> bool:
         """每轮 LLM 调用前执行（压缩/通知注入等）。返回 True 表示跳过本轮 LLM 调用。"""
+        return False
+
+    def has_pending_work(self, messages: list) -> bool:
+        """end_turn 前询问：是否有后台任务在飞（等待闭环）。
+
+        返回 True 时循环不结束，继续 pre_turn 轮询（pre_turn 负责注入
+        到达的通知并跳过 LLM 调用直到结果齐备）。子 Agent 默认无后台任务。
+        """
         return False
 
     def on_llm_start(self, ctx: LoopContext) -> None:
@@ -341,6 +350,23 @@ class AgentLoop:
             if consecutive_empty >= _MAX_EMPTY_RETRIES and len(final_text.strip()) < LoopConfig.MIN_OUTPUT_LENGTH:
                 # 重试后仍为空：放弃续跑，正常结束（final_text 为空由调用方呈现）
                 return _result("end_turn", final_text=final_text)
+
+            # ── 等待闭环：仍有后台任务在飞时不结束回合 ──
+            # （LLM 已说"我在等结果"却 end_turn 的场景：通知会经 pre_turn
+            #  注入并驱动后续轮次，成果不再滞留队列）
+            if spec.wait_for_pending and hooks.has_pending_work(messages):
+                wait_msg = {
+                    "role": "user",
+                    "content": (
+                        "<background-tasks-pending>Background sub-agents are "
+                        "still running. Wait for their <task-notification> "
+                        "results before finishing.</background-tasks-pending>"
+                    ),
+                }
+                messages.append(wait_msg)
+                if tracker:
+                    tracker.track_new_message(wait_msg)
+                continue
 
             # ── 正常结束 ──
             return _result("end_turn", final_text=final_text)

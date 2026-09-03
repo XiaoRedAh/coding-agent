@@ -242,13 +242,16 @@ class TestErrorPaths:
 
 class TestBoundaries:
     def test_max_turns_exhausted(self, monkeypatch):
-        """持续工具调用直到 max_turns 用尽，应返回最后一轮的文本。"""
+        """持续工具调用直到 max_turns 用尽：返回截断告知 + 最后一轮文本。"""
         # 每轮都返回新的 tool_use 响应（不可复用同一对象）
         llm = _FakeLLM([_tool_use_resp() for _ in range(10)])
         monkeypatch.setattr(state, "llm", llm)
         handlers = {"read_file": lambda **kw: "x"}
         out = _run(llm, max_turns=3, handlers=handlers)
-        assert out == "phase1"  # 最后一轮 resp 的文本
+        # 截断告知：主 agent 需知道结果是残次的
+        assert "stopped at max_turns" in out
+        assert "INCOMPLETE" in out
+        assert "phase1" in out  # 最后一轮 resp 的文本仍附带
         assert llm.call_count == 3
 
     def test_empty_content_returns_no_output(self, monkeypatch):
@@ -282,7 +285,12 @@ class TestBoundaries:
 # ──────────────────────────────────────────────
 
 def test_run_agent_loop_resets_resp_each_turn(monkeypatch):
-    """第二轮失败时不应复用第一轮 resp。"""
+    """第二轮失败时不应复用第一轮 resp。
+
+    max_turns=2：turn1 工具调用 → turn2 auth 错误（注入 <error>）→
+    turn3 超过上限 → max_turns 停止（resp 为 None，final_text 空）。
+    关键断言：不包含 turn1 的 'phase1' 文本（不复用旧响应）。
+    """
     llm = _FakeLLM([
         _tool_use_resp(),
         LLMError("auth failed", APIErrorType.AUTH_ERROR),
@@ -298,8 +306,9 @@ def test_run_agent_loop_resets_resp_each_turn(monkeypatch):
         agent_type="general",
     )
 
-    # 修复后第二轮失败不会误用第一轮响应。
-    assert out == "(subagent failed)"
+    # 修复后第二轮失败不会误用第一轮响应（'phase1' 不出现）。
+    assert "phase1" not in out
+    assert "max_turns" in out or "failed" in out or out == ""
 
 
 def test_run_agent_loop_llm_timeout_guard(monkeypatch):
@@ -337,7 +346,8 @@ class TestRunSubagent:
         captured = {}
 
         def fake_loop(system_prompt, messages, tool_defs, tool_handlers,
-                      max_turns, agent_type="general", status_callback=None):
+                      max_turns, agent_type="general", status_callback=None,
+                      description="", background=False):
             captured.update(
                 system_prompt=system_prompt, max_turns=max_turns,
                 agent_type=agent_type, tool_defs=tool_defs,
@@ -351,7 +361,7 @@ class TestRunSubagent:
         assert out == "subagent result"
         assert captured["agent_type"] == "explore"
         assert "Explore agent" in captured["system_prompt"]  # explore 类型的提示词
-        assert captured["max_turns"] == 15                    # explore 配置的轮次
+        assert captured["max_turns"] == 25                    # explore 配置的轮次
         assert captured["tool_defs"] == ["d1"]
 
     def test_unknown_type_raises(self):

@@ -275,6 +275,9 @@ class LLMAdapter:
 
         oai_tools = [self._convert_tool_def(t) for t in tools] if tools else None
         kwargs = dict(model=self.model, messages=oai_messages, max_tokens=max_tokens, stream=True)
+        # 流式 usage 统计：OpenAI 兼容 API 需显式请求，否则 usage chunk 不下发
+        #（tokens 统计/成本估算/上下文利用率会全部失真为 0）
+        kwargs["stream_options"] = {"include_usage": True}
         if oai_tools:
             kwargs["tools"] = oai_tools
 
@@ -287,10 +290,13 @@ class LLMAdapter:
 
         stream = self.client.chat.completions.create(**kwargs)
         for chunk in stream:
+            # usage chunk：choices 为空列表（OpenAI 兼容流式约定）
+            # 注意：DeepSeek 等 API 发的是 choices=[] 而非缺失 choices，
+            # 所以必须先查 usage 再判 choices，否则 tokens 统计恒为 0
+            if hasattr(chunk, "usage") and chunk.usage:
+                input_tokens = getattr(chunk.usage, "prompt_tokens", 0) or input_tokens
+                output_tokens = getattr(chunk.usage, "completion_tokens", 0) or output_tokens
             if not chunk.choices:
-                if hasattr(chunk, "usage") and chunk.usage:
-                    input_tokens = getattr(chunk.usage, "prompt_tokens", 0)
-                    output_tokens = getattr(chunk.usage, "completion_tokens", 0)
                 continue
             delta = chunk.choices[0].delta
             if chunk.choices[0].finish_reason:

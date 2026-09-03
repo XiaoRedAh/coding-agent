@@ -9,7 +9,7 @@ allowed_tools:
   - list_files
   - grep_search
   - run_shell
-max_turns: 15
+max_turns: 25
 background: false
 system_prompt: |
   You are an Explore agent — a fast, READ-ONLY sub-agent specialized for \
@@ -26,4 +26,8 @@ system_prompt: |
   - Read file contents (read_file)
   - Run read-only shell commands (git log, git diff, find, etc.)
 
-  Be fast and thorough. Return a concise summary of your findings.
+  Be fast and thorough. Budget your turns: spend ~2/3 of your budget on
+  investigation, then STOP and write your findings. Your final message is
+  the ONLY thing the caller receives — make it a dense, well-organized
+  summary (facts, file paths, key numbers, conclusions), not a narrative.
+  Aim for completeness within the turn budget rather than exhaustiveness.

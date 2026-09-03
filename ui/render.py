@@ -13,6 +13,8 @@ import sys
 import threading
 import time
 
+from ui.console import spinner_frames, warn_sym
+
 
 # ──────────────────────────────────────────────
 #  等待动画（LLM 响应前的加载指示）
@@ -21,7 +23,7 @@ import time
 class Spinner:
     """终端加载动画，在后台线程中运行。显示已等待秒数，便于区分"慢"与"卡死"。"""
 
-    FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+    FRAMES = spinner_frames()
 
     def __init__(self):
         self._active = False
@@ -57,29 +59,30 @@ class Spinner:
 
 def print_permission_detail(tool_name: str, tool_input: dict) -> None:
     """打印权限确认时的操作详情。"""
+    warn = warn_sym()
     if tool_name == "run_shell":
         cmd = tool_input.get("command", "")
         bg = tool_input.get("run_in_background", False)
         suffix = " (background)" if bg else ""
-        print(f"  \033[93m⚠ Shell command{suffix}:\033[0m {cmd}")
+        print(f"  \033[93m{warn} Shell command{suffix}:\033[0m {cmd}")
     elif tool_name == "write_file":
         path = tool_input.get("file_path", "")
         size = len(tool_input.get("content", ""))
-        print(f"  \033[93m⚠ Write file:\033[0m {path} ({size} bytes)")
+        print(f"  \033[93m{warn} Write file:\033[0m {path} ({size} bytes)")
     elif tool_name == "edit_file":
         path = tool_input.get("file_path", "")
         old = tool_input.get("old_string", "")[:50]
-        print(f"  \033[93m⚠ Edit file:\033[0m {path} (replace: \"{old}...\")")
+        print(f"  \033[93m{warn} Edit file:\033[0m {path} (replace: \"{old}...\")")
     elif tool_name == "agent":
         atype = tool_input.get("type", "general")
         desc = tool_input.get("description", "")
         name = tool_input.get("name", "")
         if name:
-            print(f"  \033[93m⚠ Create teammate:\033[0m {name} (type={atype})")
+            print(f"  \033[93m{warn} Create teammate:\033[0m {name} (type={atype})")
         else:
-            print(f"  \033[93m⚠ Launch sub-agent:\033[0m [{atype}] {desc}")
+            print(f"  \033[93m{warn} Launch sub-agent:\033[0m [{atype}] {desc}")
     else:
-        print(f"  \033[93m⚠ {tool_name}:\033[0m {json.dumps(tool_input, ensure_ascii=False)[:120]}")
+        print(f"  \033[93m{warn} {tool_name}:\033[0m {json.dumps(tool_input, ensure_ascii=False)[:120]}")
 
 
 def confirm_action() -> bool:

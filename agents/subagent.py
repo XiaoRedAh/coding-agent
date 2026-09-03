@@ -87,6 +87,8 @@ def _run_agent_loop(
     max_turns: int,
     agent_type: str = "general",
     status_callback=None,
+    description: str = "",
+    background: bool = False,
 ) -> str:
     """
     子 Agent 的通用循环：LLM 调用 → 工具执行 → 返回最终文本。
@@ -106,14 +108,27 @@ def _run_agent_loop(
     )
 
     t0 = time.time()
-    trace("agent_spawn", agent_type=agent_type)
+    from services.tracing import get_tracer
+    agent_id = get_tracer().enter_agent()
+    trace("agent_spawn", agent_type=agent_type, agent_id=agent_id,
+          background=background, description=description[:120])
     loop = AgentLoop(state.llm, spec, hooks)
     result = loop.run(messages)
-    trace("agent_done", agent_type=agent_type, turns=result.turns_used,
+    trace("agent_done", agent_type=agent_type, agent_id=agent_id,
+          turns=result.turns_used,
           latency_ms=round((time.time() - t0) * 1000, 1),
           stop_reason=result.stop_reason)
+    get_tracer().exit_agent()
 
     # ── 映射为旧的字符串返回约定 ──
+    if result.stop_reason == "max_turns":
+        # 截断告知：主 agent 需知道拿到的是未完成的残次结果
+        return (
+            f"(SubAgent stopped at max_turns={max_turns} before completing "
+            f"the task. The result below may be INCOMPLETE — treat it as "
+            f"partial work, or re-dispatch with a tighter scope.)\n"
+            f"{result.final_text or ''}"
+        )
     if result.stop_reason == "tool_errors":
         return f"(SubAgent stopped: {result.error_count} tool errors in one turn)"
     if result.stop_reason == "llm_errors":
@@ -150,6 +165,8 @@ def run_subagent(
         config["max_turns"],
         agent_type,
         status_callback=status_callback,
+        description=description,
+        background=False,
     )
     return result
 
@@ -176,14 +193,20 @@ def run_subagent_async(
     # 打印启动日志（供用户交互端查看）
     print(f"  \033[36m[Coordinator]\033[0m 启动 Worker: \033[1m{label}\033[0m (type: {agent_type}, id: {task_id})")
 
+    # 可观测性：后台派发事件（task_id 关联通知与结果）
+    trace("agent_dispatch", task_id=task_id, agent_type=agent_type,
+          background=True, description=description[:120])
+
     # 通知队列 +1（用于追踪进行中的任务数）
     state.agent_tasks.increment()
 
     def _run():
         try:
             print(f"  \033[33m[Worker:{agent_type}]\033[0m 任务进行中... (id: {task_id})")
-            result = run_subagent(prompt, agent_type)
-            state.agent_tasks.submit(task_id, agent_type, "completed", result[:2000])
+            result = run_subagent(prompt, agent_type, description)
+            # 结果截断放宽：2000 字符对调研类任务太短，主 agent 拿不到
+            # 足够信息会自己重新调研（成本翻倍）。4000 覆盖典型调研摘要。
+            state.agent_tasks.submit(task_id, agent_type, "completed", result[:4000])
             print(f"  \033[32m[Worker:{agent_type}]\033[0m 完成 (id: {task_id})")
         except Exception as e:
             state.agent_tasks.submit(task_id, agent_type, "error", str(e))

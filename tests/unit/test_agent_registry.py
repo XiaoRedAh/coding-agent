@@ -36,7 +36,7 @@ class TestBuiltinAgents:
 
     def test_explore_config(self, fresh_registry):
         c = fresh_registry.get("explore")
-        assert c["max_turns"] == 15
+        assert c["max_turns"] == 25
         assert c["background"] is False
         assert c["allowed_tools"] == frozenset(
             {"read_file", "list_files", "grep_search", "run_shell"})
@@ -52,7 +52,7 @@ class TestBuiltinAgents:
         assert fresh_registry.get("verification")["background"] is True
 
     def test_case_insensitive_lookup(self, fresh_registry):
-        assert fresh_registry.get("EXPLORE")["max_turns"] == 15
+        assert fresh_registry.get("EXPLORE")["max_turns"] == 25
 
     def test_unknown_type_lists_available(self, fresh_registry):
         with pytest.raises(ValueError, match="explore"):
