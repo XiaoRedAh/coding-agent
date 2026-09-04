@@ -48,7 +48,7 @@ class LLMSettings:
 @dataclass(frozen=True)
 class LoopSettings:
     default_max_turns: int = 50
-    subagent_max_turns: int = 30
+    subagent_max_turns: int = 80
     coordinator_max_turns: int = 20
     max_consecutive_tool_errors: int = 5
     max_consecutive_llm_errors: int = 3

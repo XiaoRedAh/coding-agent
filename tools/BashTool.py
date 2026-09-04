@@ -8,6 +8,7 @@ tools/BashTool.py - Shell 命令执行工具
 对应 Claude Code 的 BashTool（同时包含 run_in_background 参数）。
 """
 
+import re
 import subprocess
 
 from runtime.state import settings
@@ -48,9 +49,41 @@ DEFINITION = {
 # grep/diff/test 等命令的退出码 1 不代表错误
 _EXIT1_OK_COMMANDS = {"grep", "diff", "test", "cmp", "comm"}
 
+# ── 自杀防护 ──────────────────────────────────────────────
+# 终止 python 系进程的命令会连 agent 自身一起杀死（agent 就是 python 进程），
+# 导致工作流/会话无痕中断（真实事故：metagpt 流程在 Engineer 轮被自身清理
+# 命令杀掉，无 traceback、无转录落盘）。此类命令在工具层直接拒绝——
+# bypass 权限模式也无法绕过（权限层危险清单只覆盖 taskkill，漏 wmic/Stop-Process）。
+_KILL_VERBS = re.compile(
+    r"\b(taskkill|stop-process|wmic|killall|pkill|tskill)\b", re.IGNORECASE)
+_KILL_TARGET_PY = re.compile(
+    r"\b(python\w*|py\.exe|python3(\.\d+)?)\b", re.IGNORECASE)
+# 通配/无差别的进程终止（wmic process delete / killall python 之外的裸杀）
+_KILL_ANY = re.compile(r"\bwmic\s+process\b", re.IGNORECASE)
+
+
+def _would_kill_self(command: str) -> bool:
+    """命令是否可能终止 agent 自身（python 进程）。"""
+    if not _KILL_VERBS.search(command):
+        return False
+    # 无差别终止（如 taskkill /f /im python.exe 之外的宽泛写法）
+    if _KILL_ANY.search(command) and _KILL_TARGET_PY.search(command):
+        return True
+    # 定向 python：taskkill python.exe / Stop-Process -Name python 等
+    return bool(_KILL_TARGET_PY.search(command))
+
 
 def handle(command: str, timeout: int = None, run_in_background: bool = False) -> str:
     """执行 shell 命令。run_in_background=True 时在后台线程执行。"""
+    if not command or not command.strip():
+        return ToolResult.failure("command cannot be empty", "invalid_input")
+    # 工具级护栏：先于权限系统，任何模式都不可执行（防 agent 自杀）
+    if _would_kill_self(command):
+        return ToolResult.failure(
+            "Refused: this command terminates python processes, which would kill "
+            "the agent itself. If a process is stuck, prefer run_in_background "
+            "with a timeout instead of killing python.",
+            "self_kill_guard")
     if timeout is None:
         timeout = settings.shell.default_timeout
     if run_in_background:

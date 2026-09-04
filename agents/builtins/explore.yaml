@@ -9,7 +9,7 @@ allowed_tools:
   - list_files
   - grep_search
   - run_shell
-max_turns: 25
+max_turns: 80
 background: false
 system_prompt: |
   You are an Explore agent — a fast, READ-ONLY sub-agent specialized for \

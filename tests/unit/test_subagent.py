@@ -361,7 +361,7 @@ class TestRunSubagent:
         assert out == "subagent result"
         assert captured["agent_type"] == "explore"
         assert "Explore agent" in captured["system_prompt"]  # explore 类型的提示词
-        assert captured["max_turns"] == 25                    # explore 配置的轮次
+        assert captured["max_turns"] == 80                    # explore 配置的轮次
         assert captured["tool_defs"] == ["d1"]
 
     def test_unknown_type_raises(self):

@@ -60,6 +60,8 @@ DANGEROUS_PATTERNS = [
     re.compile(r"\brmdir\s", re.IGNORECASE),
     re.compile(r"\bformat\s", re.IGNORECASE),
     re.compile(r"\btaskkill\s", re.IGNORECASE),
+    re.compile(r"\bwmic\s+process\b", re.IGNORECASE),   # wmic process delete
+    re.compile(r"\bStop-Process\b", re.IGNORECASE),     # PowerShell 终止进程
 ]
 
 # 危险路径——bypass 模式下也需确认（bypass-immune）

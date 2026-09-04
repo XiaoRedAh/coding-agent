@@ -21,7 +21,7 @@ llm:
 # ---------- Agent Loop 保护 ----------
 loop:
   default_max_turns: 50          # 主循环最大轮次
-  subagent_max_turns: 30         # 子 agent 默认最大轮次
+  subagent_max_turns: 80         # 子 agent 默认最大轮次
   coordinator_max_turns: 20      # Coordinator 模式最大轮次
   max_consecutive_tool_errors: 5 # 同轮内连续工具错误上限
   max_consecutive_llm_errors: 3  # 跨轮连续 LLM 错误上限

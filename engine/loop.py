@@ -283,15 +283,25 @@ class AgentLoop:
 
             consecutive_llm_errors = 0
 
-            # ── 追加 assistant 消息 ──
-            messages.append({"role": "assistant", "content": resp.content})
-            hooks.on_response(ctx, resp)
-
             tool_blocks = [
                 b for b in (resp.content or [])
                 if getattr(b, "type", None) == "tool_use"
             ]
             truncated = bool(getattr(resp, "is_truncated", False))
+
+            # ── 追加 assistant 消息 ──
+            # 防御：LLM 偶发返回 content 为空且无工具调用的空响应。若把
+            # {"role":"assistant","content":[]} 落进历史，OpenAI/DeepSeek 对
+            # content 与 tool_calls 双空的消息直接 400（BadRequestError，不可重试），
+            # 之后每一轮都带着它请求 → 连续失败（真实事故：metagpt Engineer
+            # 轮三连 400 后子 agent 中止，输出只剩 49 字符）。
+            # 空响应不落库，交给下方空响应检测注入 <error> 续跑。
+            _content = getattr(resp, "content", None)
+            _has_text = bool(extract_text(resp)) or (
+                isinstance(_content, str) and bool(_content.strip()))
+            if tool_blocks or _has_text:
+                messages.append({"role": "assistant", "content": _content})
+            hooks.on_response(ctx, resp)
 
             # ── 工具执行分支 ──
             if tool_blocks:

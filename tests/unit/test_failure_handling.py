@@ -69,6 +69,22 @@ class TestEmptyResponseDetection:
         assert result.final_text == ""
         assert n_calls == 2  # 只重试一次
 
+    def test_empty_response_leaves_no_empty_assistant(self):
+        """空响应不得把 content 为空且无 tool_calls 的 assistant 消息留在历史。
+
+        回归：OpenAI/DeepSeek 对双空 assistant 直接 400（BadRequestError，
+        不可重试），残留在历史里会让后续每一轮都失败
+        （metagpt Engineer 轮三连 400 真实事故）。
+        """
+        result, messages, n_calls = self._run_loop([
+            self._resp(""), self._resp("Here is the answer."),
+        ])
+        assert result.stop_reason == "end_turn"
+        for m in messages:
+            if m["role"] == "assistant":
+                assert m.get("content"), (
+                    f"empty assistant message persisted: {m}")
+
     def test_normal_response_not_affected(self):
         """正常响应不触发空响应路径。"""
         result, messages, n_calls = self._run_loop([

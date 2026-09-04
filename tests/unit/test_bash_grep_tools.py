@@ -212,3 +212,36 @@ class TestGrepSearchTool:
         out = GrepSearchTool.handle("hello", path=".")
         assert "more matches" in out
         assert "showing first 2" in out
+
+
+class TestSelfKillGuard:
+    """自杀式命令护栏：终止 python 进程的命令必须被拒绝（防 agent 自杀）。"""
+
+    @pytest.mark.parametrize("cmd", [
+        "taskkill /F /IM python.exe",
+        "wmic process where \"name='python.exe'\" delete",
+        "Stop-Process -Name python",
+        "powershell -Command \"Stop-Process -Name python.exe\"",
+        "taskkill /f /im py.exe /t",
+        "pkill -f python",
+    ])
+    def test_kill_python_blocked(self, cmd):
+        assert BashTool._would_kill_self(cmd) is True
+        out = BashTool.handle(cmd)
+        assert out.ok is False
+        assert out.error == "self_kill_guard"
+
+    @pytest.mark.parametrize("cmd", [
+        "taskkill /F /IM notepad.exe",
+        "taskkill /F /IM explorer.exe",   # 危险清单拦截级别，非自杀护栏
+        "echo python is fine",
+        f'"{sys.executable}" -c "print(1)"',   # 运行 python 本身是正常操作
+        "python -m pytest tests/ -q",
+    ])
+    def test_non_kill_python_allowed(self, cmd):
+        assert BashTool._would_kill_self(cmd) is False
+
+    def test_empty_command_rejected(self):
+        out = BashTool.handle("   ")
+        assert out.ok is False
+        assert out.error == "invalid_input"

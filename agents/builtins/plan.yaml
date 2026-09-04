@@ -9,7 +9,7 @@ allowed_tools:
   - list_files
   - grep_search
   - run_shell
-max_turns: 20
+max_turns: 80
 background: false
 system_prompt: |
   You are a Plan agent — a READ-ONLY sub-agent specialized for designing \

@@ -203,8 +203,21 @@ class _MainLoopHooks(LoopHooks):
         ok = getattr(output, "ok", None)
         if ok is None:
             ok = not str(output).startswith(("Error:", "<error>", "<tool_use_error>"))
-        trace("tool_call", turn=ctx.turn_count, tool=block.name,
-              ok=bool(ok), latency_ms=latency_ms, result_chars=len(str(output)))
+        fields = {
+            "turn": ctx.turn_count,
+            "tool": block.name,
+            "ok": bool(ok),
+            "latency_ms": latency_ms,
+            "result_chars": len(str(output)),
+        }
+        # 输入预览：run_shell 记命令、写/编辑记路径、其余记参数字符数
+        # （崩溃/被杀后的复盘需要还原"最后一步做了什么"）
+        inp = block.input if isinstance(block.input, dict) else {}
+        if block.name == "run_shell":
+            fields["command"] = str(inp.get("command", ""))[:200]
+        elif block.name in ("write_file", "edit_file"):
+            fields["path"] = str(inp.get("file_path", ""))[:200]
+        trace("tool_call", **fields)
         # 记忆写入检测：第一层写入引导有效性的直接指标
         if (block.name in ("write_file", "edit_file")
                 and isinstance(block.input, dict)

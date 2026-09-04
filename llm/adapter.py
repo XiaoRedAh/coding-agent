@@ -563,7 +563,14 @@ class LLMAdapter:
                     elif isinstance(block, dict):
                         if block.get("type") == "text":
                             parts.append(block.get("text", ""))
-            result = {"role": "assistant", "content": "\n".join(parts) or None}
+            text = "\n".join(parts)
+            # 兜底防御：assistant 消息 content 与 tool_calls 双空会被
+            # OpenAI/DeepSeek 以 400 拒绝（content or tool_calls must be set）。
+            # 有 tool_calls 时 content=None 合法；双空则用空串占位，避免请求失败。
+            result = {
+                "role": "assistant",
+                "content": text or (None if tool_calls else ""),
+            }
             if tool_calls:
                 result["tool_calls"] = tool_calls
             return result

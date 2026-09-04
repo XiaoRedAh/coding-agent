@@ -50,7 +50,7 @@ class TestYAMLOverrides:
         s = load_settings(workdir=tmp_path)
         assert s.loop.default_max_turns == 10
         # 未覆盖的值保持默认
-        assert s.loop.subagent_max_turns == 30
+        assert s.loop.subagent_max_turns == 80
 
     def test_deep_merge_semantics(self):
         base = {"a": {"x": 1, "y": 2}, "b": 3}

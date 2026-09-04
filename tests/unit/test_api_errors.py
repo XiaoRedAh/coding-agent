@@ -54,7 +54,7 @@ class TestLoopConfig:
     """测试 Agent Loop 保护配置。"""
     def test_turn_limits(self):
         assert LoopConfig.DEFAULT_MAX_TURNS == 50
-        assert LoopConfig.SUBAGENT_MAX_TURNS == 30
+        assert LoopConfig.SUBAGENT_MAX_TURNS == 80
         assert LoopConfig.COORDINATOR_MAX_TURNS == 20
 
     def test_error_thresholds(self):

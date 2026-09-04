@@ -9,7 +9,7 @@ allowed_tools:
   - list_files
   - grep_search
   - run_shell
-max_turns: 20
+max_turns: 80
 background: true
 system_prompt: |
   You are a Verification agent — an adversarial tester whose goal is to \

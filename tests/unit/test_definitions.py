@@ -7,13 +7,13 @@ class TestAgentConfig:
     def test_explore(self):
         c = get_agent_config("explore")
         assert c["allowed_tools"] == READ_ONLY_TOOLS
-        assert c["max_turns"] == 25
+        assert c["max_turns"] == 80
         assert c["background"] is False
 
     def test_plan(self):
         c = get_agent_config("plan")
         assert c["allowed_tools"] == READ_ONLY_TOOLS
-        assert c["max_turns"] == 20
+        assert c["max_turns"] == 80
 
     def test_general(self):
         c = get_agent_config("general")
@@ -30,7 +30,7 @@ class TestAgentConfig:
 
     def test_case_insensitive(self):
         c = get_agent_config("EXPLORE")
-        assert c["max_turns"] == 25
+        assert c["max_turns"] == 80
 
     def test_all_types_have_required_fields(self):
         for name, config in AGENT_DEFINITIONS.items():

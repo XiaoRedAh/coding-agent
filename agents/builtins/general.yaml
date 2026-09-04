@@ -13,7 +13,7 @@ allowed_tools:
   - run_shell
   - load_skill
   # 注意：不包含 agent，防止子 Agent 递归创建子 Agent
-max_turns: 45
+max_turns: 80
 background: false
 system_prompt: |
   You are a General sub-agent handling an independent task.
