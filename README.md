@@ -8,7 +8,7 @@
 |------|------|
 | **工具系统** | 10 个内置工具：Shell、文件读写/编辑、文件列表、内容搜索、Agent 派生、Skill 加载、Todo、Task |
 | **上下文压缩** | 5 级压缩管道：动态预算 → Snip 旧结果 → 空闲微压缩 → 双阶段 LLM 摘要（带断路器保护） |
-| **多 Agent 协作** | 三种模式：SubAgent 同步/异步派生、Coordinator 规划-执行分离、MetaGPT-lite SOP 工作流 |
+| **多 Agent 协作** | agent 工具派生（同步/后台 SubAgent）+ MetaGPT-lite SOP 工作流 |
 | **权限控制** | 3 层管线：deny 规则 → 危险检测（命令+路径） → 5 种模式决策 |
 | **MCP 集成** | stdio JSON-RPC 协议连接外部 MCP 服务器，工具自动发现并合并到工具池 |
 | **Skills 系统** | 渐进式披露：启动时只展示简介，LLM 按需加载完整技能内容，支持参数替换 |
@@ -50,7 +50,7 @@ coding agent/
 ├── engine/                        # 【核心引擎】与具体功能无关的循环骨架
 │   ├── loop.py                    # ★ 统一 Agent Loop（主/子 agent 共用，差异以 LoopSpec+Hooks 表达）
 │   ├── results.py                 # ToolResult 结构化工具结果（str 子类，ok/error 元数据）
-│   ├── notifications.py           # 后台/Agent 通知收集（含 Coordinator 阻塞等待）
+│   ├── notifications.py           # 后台/Agent 通知收集（主循环统一等待语义）
 │   └── errors.py                  # API 错误分类、重试与循环保护配置
 │
 ├── llm/                           # 【模型接入层】
@@ -58,7 +58,7 @@ coding agent/
 │
 ├── context/                       # 【上下文管理】
 │   ├── prompt.py                  # ★ System Prompt 构建（动静分离 + Prompt Cache 标记）
-│   ├── builder.py                 # 运行时 Prompt 装配器（normal/coordinator 模式切换）
+│   ├── builder.py                 # 运行时配置装配器（system prompt + 工具池）
 │   └── compact.py                 # ★ 5 级上下文压缩管道（断路器 + TokenTracker）
 │
 ├── agents/                        # 【多 Agent 系统】
@@ -66,7 +66,6 @@ coding agent/
 │   ├── registry.py                # ★ Agent 类型注册表（内置 + 用户自定义，统一 YAML 定义）
 │   ├── builtins/                  # 内置 Agent 定义（explore/plan/general/verification.yaml）
 │   ├── subagent.py                # ★ SubAgent 派生执行（统一循环薄封装：同步 + 异步）
-│   ├── coordinator.py             # ★ Coordinator 协调者模式（规划-执行分离）
 │   ├── task_queue.py              # 异步 Agent 任务通知队列
 │   ├── custom_registry.py         # 工作流自定义角色加载
 │   └── definitions.py             # 兼容层（旧导出转发到 registry）
@@ -105,7 +104,6 @@ coding agent/
 │
 ├── prompts/                       # 【提示词体系】三级覆盖：内置 < ~/.xiaoagent/prompts < .xiaoagent/prompts
 │   ├── base.md                    # ★ 主 System Prompt 模板（动静分离，Prompt Cache 友好）
-│   ├── coordinator.md             # Coordinator（Orchestrator）模式提示词
 │   ├── fragments/memory.md        # ★ 记忆指令片段（含主动写入引导：任务完成/偏好/决策/纠正）
 │   ├── fragments/skills.md        # 技能系统说明（安装目录约定 + 触发方式）
 │   ├── workflow/                  # 工作流角色 Prompt 模板（analyst/engineer/tester.md）
@@ -125,7 +123,7 @@ coding agent/
 ```
 
 **核心代码文件**（标 ★）是理解项目架构的推荐阅读顺序：
-`runtime/state.py` → `main.py` → `engine/loop.py` → `agents/session.py` → `context/prompt.py` → `llm/adapter.py` → `context/compact.py` → `services/permissions.py` → `agents/subagent.py` → `agents/coordinator.py`
+`runtime/state.py` → `main.py` → `engine/loop.py` → `agents/session.py` → `context/prompt.py` → `llm/adapter.py` → `context/compact.py` → `services/permissions.py` → `agents/subagent.py` → `workflows/engine.py`
 
 ---
 
@@ -215,7 +213,6 @@ MODEL_CONTEXT_WINDOW=128000
 | `MODEL_ID` | 模型名称 | - |
 | `MODEL_CONTEXT_WINDOW` | 模型上下文窗口大小 | `200000` |
 | `PERMISSION_MODE` | 权限模式（见下方说明） | `default` |
-| `COORDINATOR_MODE` | Coordinator 模式开关（`1`/`true` 开启） | 关闭 |
 | `SOP_MODE` | SOP 工作流模式开关（`1`/`true` 开启） | 关闭 |
 
 > `LLM_PROVIDER=openai` 时使用 OpenAI SDK，可连接 OpenRouter / DeepSeek / Qwen 等所有 OpenAI 兼容 API。`services/llm.py` 自动处理 Anthropic 与 OpenAI 之间的 tool 格式差异。
@@ -438,15 +435,7 @@ background: false            # true 则始终后台运行
 定义文件支持 `.yaml` / `.yml` / `.json`；缺失必填字段、未知字段、类型错误
 会在启动时得到带文件定位的明确报错。
 
-### 模式 B：Coordinator（规划-执行分离）
-
-设置 `COORDINATOR_MODE=1` 激活。主 Agent 变为项目管理者（Orchestrator），只拥有只读调研工具 + `agent` 工具：
-
-- **规划**：分析用户需求，拆分为独立子任务
-- **并行执行**：在一次响应中派生多个 Worker 并行执行
-- **合成**：收集 Worker 结果后合成为最终响应
-
-### 模式 C：MetaGPT-lite SOP 工作流
+### MetaGPT-lite SOP 工作流（`/workflow`）
 
 通过 `/workflow <requirement>` 命令或 `SOP_MODE=1` 触发。严格 SOP 流程：
 
@@ -520,7 +509,7 @@ pytest tests/integration/ -v -s
 
 | 测试层级 | 文件数 | 说明 |
 |----------|--------|------|
-| `tests/unit/` | 14 | 权限、压缩、LLM 适配、Skills、定义、任务队列、编辑工具、MCP、Memory、Coordinator、API 错误、JSON 修复、LLM 重试、SubAgent、工作流模式 |
+| `tests/unit/` | 14 | 权限、压缩、LLM 适配、Skills、定义、任务队列、编辑工具、MCP、Memory、API 错误、JSON 修复、LLM 重试、SubAgent、工作流模式 |
 | `tests/component/` | 1 | Mock LLM 的 Agent Loop 端到端测试：文本响应、工具调用、权限拒绝、多轮工具、通知注入、maxTurns 限制、连续错误、错误恢复 |
 | `tests/integration/` | 1 | 真实 LLM 连接、Tool Calling、多轮对话测试 |
 

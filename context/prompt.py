@@ -141,7 +141,7 @@ def build_system_prompt() -> list[dict]:
 
 def build_system_prompt_str() -> str:
     """
-    构建纯字符串版本的系统提示词（子 Agent / Coordinator 等不需要缓存的场景）。
+    构建纯字符串版本的系统提示词（子 Agent 等不需要分块缓存的场景）。
     """
     blocks = build_system_prompt()
     return "\n\n".join(b["text"] for b in blocks)

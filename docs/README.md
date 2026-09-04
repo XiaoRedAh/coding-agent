@@ -10,11 +10,11 @@
 
 | 目录 | 内容 | 数量 |
 |------|------|------|
-| [`01-research/`](01-research/) | 外部技术/产品调研（含竞品分析） | 8 |
-| [`02-plans/`](02-plans/) | 历史设计方案与实施计划 | 6 |
+| [`01-research/`](01-research/) | 外部技术/产品调研（含竞品分析） | 9 |
+| [`02-plans/`](02-plans/) | 历史设计方案与实施计划 | 8 |
 | [`03-retrospectives/`](03-retrospectives/) | 开发过程复盘与时点记录 | 7 |
-| [`04-architecture/`](04-architecture/) | 项目架构详解（与代码对照阅读） | 5 |
-| [`archive/`](archive/) | 已被新版本取代的过时文档 | 1 |
+| [`04-architecture/`](04-architecture/) | 项目架构详解（与代码对照阅读，当前版） | 11 |
+| [`archive/`](archive/) | 已被新版本取代的过时文档 | 5 |
 
 ---
 
@@ -60,17 +60,27 @@
 | `测试与评估结果分析.md` | 测试与评估执行情况记录 |
 | `项目组件分析与清理.md` | 组件现状分析与 CC 对比 |
 
-## 04-architecture/ — 项目详解
+## 04-architecture/ — 项目详解（当前版）
 
-对项目本身架构的讲解，**建议与当前代码对照阅读**。
+对项目本身架构的讲解，**与当前代码对照阅读**。详见目录内 [README.md](04-architecture/README.md)
+（含归档映射）。按模块拆分，每篇围绕一个子系统：
 
-| 文件 | 状态 |
-|------|------|
-| `项目详解-v2.md` | ✅ 当前版本（工具/提示词/压缩/多 Agent 架构） |
-| `项目评估体系详解.md` | ✅ 与 `../eval/` 对应 |
-| `项目失败处理详解.md` | ✅ 与 `services/api_errors.py` 对应 |
-| `Coordinator模式详解.md` | ⚠ 实现已演进（提示词改为 Orchestrator 风格、工具集有调整），细节以 `agents/coordinator.py` 为准 |
-| `MetaGPT简化版多Agent协作模式实现详解.md` | ⚠ 实现可能略有演进，细节以 `workflows/` 为准 |
+| 文件 | 主题 | 对应代码 |
+|------|------|----------|
+| `README.md` | 文档地图(mindmap) + 归档映射 + 阅读顺序 | - |
+| `00-提示词工程与行为规则.md` | 三级覆盖、动静分离、base.md 逐节、fragments、度量（附录） | `prompts/` · `context/prompt.py` |
+| `01-总览与启动流程.md` | 定位、目录、启动链路、配置分层、Prompt 体系、演进 | `main.py` · `config/` · `prompts/` |
+| `02-核心循环.md` | AgentLoop、ReAct、plan-and-solve、错误恢复、等待闭环（附录·变更史） | `engine/loop.py` |
+| `03-工具系统.md` | 工具定义/注册/分发、ToolResult、隔离、动态能力（附录） | `tools/` |
+| `04-权限与安全.md` | 模式/规则/危险检测、决策管线、bypass-immune、自杀护栏（附录） | `services/permissions.py` |
+| `05-上下文管理.md` | 五级压缩管线、预算/熔断、压缩后恢复（附录） | `context/compact.py` |
+| `06-记忆系统.md` | 跨会话记忆、写引导、渐进式注入、KPI（附录） | `services/memory.py` |
+| `07-技能系统.md` | Agent Skills、三层披露、双入口、多级来源（附录） | `skills/` |
+| `08-多Agent与工作流.md` | 子 Agent、注册表、SOP 引擎、Coordinator 过时（附录） | `agents/` · `workflows/` |
+| `09-稳定执行.md` | 失败处理全景 + 可观测性 + 复盘方法论（附录） | `engine/errors.py` · `services/tracing.py` |
+| `项目评估体系详解.md` | ✅ 与 `../eval/` 对应（不重写） | `eval/` |
+
+> 注：MCP 模块尚未测试重构，暂不编写详解；测试与评估不另行编写新文档。
 
 ## archive/ — 归档
 
@@ -78,7 +88,11 @@
 
 | 文件 | 取代者 |
 |------|------|
-| `项目详解.md` | 由 `04-architecture/项目详解-v2.md` 取代 |
+| `项目详解.md` | 04-architecture 新体系（整体） |
+| `项目详解-v2.md` | 新 `01-总览` / `02-核心循环` 等（2026-09-04 归档） |
+| `项目失败处理详解.md` | 新 `09-稳定执行.md`（2026-09-04 归档） |
+| `Coordinator模式详解.md` | Coordinator 已过时，仅在新 `08` 简述（2026-09-04 归档） |
+| `MetaGPT简化版多Agent协作模式实现详解.md` | 新 `08-多Agent与工作流.md`（2026-09-04 归档） |
 
 ---
 

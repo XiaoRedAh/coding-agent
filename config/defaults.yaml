@@ -22,10 +22,9 @@ llm:
 loop:
   default_max_turns: 50          # 主循环最大轮次
   subagent_max_turns: 80         # 子 agent 默认最大轮次
-  coordinator_max_turns: 20      # Coordinator 模式最大轮次
   max_consecutive_tool_errors: 5 # 同轮内连续工具错误上限
   max_consecutive_llm_errors: 3  # 跨轮连续 LLM 错误上限
-  coordinator_wait_timeout: 120  # Coordinator 等待 Worker 的超时（秒）
+  agent_wait_timeout: 120        # 主循环等待后台子 Agent 完成的超时（秒）
 
 # ---------- 上下文压缩（5 级管道）----------
 compact:
@@ -87,16 +86,6 @@ memory:
   max_index_lines: 200           # MEMORY.md 索引最大行数
   max_index_bytes: 25000         # MEMORY.md 索引最大字节数
   max_memory_files: 200          # 记忆文件总数上限
-
-# ---------- Coordinator 协调者模式 ----------
-coordinator:
-  enabled: false                 # 主 Agent 以 Orchestrator 模式运行（规划-执行分离）
-  allowed_tools:                 # Coordinator 工具白名单（不含 write/edit，不直接改文件）
-    - agent
-    - read_file
-    - list_files
-    - grep_search
-    - run_shell
 
 # ---------- 可观测性（会话 trace）----------
 tracing:

@@ -18,7 +18,6 @@ from runtime.state import WARNING_THRESHOLD, settings
 
 from tools import get_all_definitions, get_all_handlers
 from context.prompt import build_system_prompt  # backward-compat for tests patching query.build_system_prompt
-from agents.coordinator import is_coordinator_mode
 from context.builder import PromptBuilder
 from services.permissions import check_permission
 from engine.errors import LoopConfig
@@ -74,11 +73,11 @@ class _MainLoopHooks(LoopHooks):
             messages.append(msg)
             self.tracker.track_new_message(msg)
 
-        # 异步 Agent 通知（含等待逻辑：普通模式与 Coordinator 统一语义）
+        # 异步 Agent 通知（统一等待语义：主循环"有 in_flight 即等待/继续收集"）
         if state.agent_tasks:
-            coordinator_mode = True  # 等待语义统一：有 in_flight 即等待
             content, skip_llm = process_agent_notifications(
-                state, coordinator_mode, settings.loop.coordinator_wait_timeout)
+                state, wait_for_inflight=True,
+                wait_timeout=settings.loop.agent_wait_timeout)
             if content:
                 msg = {"role": "user", "content": content}
                 messages.append(msg)

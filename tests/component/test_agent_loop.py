@@ -42,8 +42,7 @@ def mock_env():
     mock_state.llm = mock_llm
 
     with patch("agents.session.state", mock_state), \
-         patch("agents.session.build_system_prompt", return_value=[{"type": "text", "text": "sys"}]), \
-         patch("agents.session.is_coordinator_mode", return_value=False):
+         patch("agents.session.build_system_prompt", return_value=[{"type": "text", "text": "sys"}]):
         yield mock_state, mock_llm
 
 

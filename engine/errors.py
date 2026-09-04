@@ -160,7 +160,6 @@ class LoopConfig:
     # 最大轮次限制
     DEFAULT_MAX_TURNS = _settings.loop.default_max_turns      # 默认最大执行轮次
     SUBAGENT_MAX_TURNS = _settings.loop.subagent_max_turns    # SubAgent 默认最大轮次
-    COORDINATOR_MAX_TURNS = _settings.loop.coordinator_max_turns  # Coordinator 默认最大轮次
 
     # 连续错误限制
     MAX_CONSECUTIVE_TOOL_ERRORS = _settings.loop.max_consecutive_tool_errors  # 连续工具错误阈值

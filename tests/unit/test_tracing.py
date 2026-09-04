@@ -200,51 +200,33 @@ class TestTurnsUsed:
 
 
 # ──────────────────────────────────────────────
-#  D. Coordinator 配置化（编排收敛）
+#  D. 通知等待（统一语义）
 # ──────────────────────────────────────────────
 
-class TestCoordinatorConvergence:
-    def test_prompt_loaded_from_prompts_dir(self):
-        """提示词来自 prompts/coordinator.md（非硬编码）。"""
-        from agents.coordinator import get_coordinator_system_prompt
-        prompt = get_coordinator_system_prompt()
-        assert "Orchestrator" in prompt
-        assert "delegates to Workers" in prompt
-        assert "PARALLEL" in prompt
-        assert "independent" in prompt.lower()
+class TestAgentWaitNotifications:
+    """通知等待语义的薄验证。"""
 
-    def test_workdir_placeholder_replaced(self, tmp_workdir):
-        from agents.coordinator import get_coordinator_system_prompt
-        prompt = get_coordinator_system_prompt()
-        assert "{{workdir}}" not in prompt
-        assert str(tmp_workdir) in prompt
+    def test_wait_and_drain_used_by_process_agent_notifications(self, monkeypatch):
+        from engine import notifications
+        import runtime.state as st
 
-    def test_allowed_tools_from_config(self):
-        from agents.coordinator import COORDINATOR_ALLOWED_TOOLS, get_coordinator_config
-        assert "agent" in COORDINATOR_ALLOWED_TOOLS
-        assert "write_file" not in COORDINATOR_ALLOWED_TOOLS
-        assert "edit_file" not in COORDINATOR_ALLOWED_TOOLS
-        assert "read_file" in get_coordinator_config()["allowed_tools"]
+        class _FakeTasks:
+            def __init__(self):
+                self._in_flight = 2
+                self._notifs = [{"task_id": "a", "agent_type": "general", "status": "completed", "result": "r"}]
+                self._waited = False
 
-    def test_prompt_overridable_at_project_level(self, tmp_workdir):
-        """项目级覆盖 coordinator 提示词（三级覆盖体系）。"""
-        from agents.coordinator import get_coordinator_system_prompt
-        proj_prompts = tmp_workdir / ".xiaoagent" / "prompts"
-        proj_prompts.mkdir(parents=True)
-        (proj_prompts / "coordinator.md").write_text(
-            "CUSTOM COORDINATOR at {{workdir}}", encoding="utf-8")
-        prompt = get_coordinator_system_prompt()
-        assert "CUSTOM COORDINATOR" in prompt
-        assert str(tmp_workdir) in prompt
+            def drain(self):
+                if self._waited:
+                    return self._notifs, 0
+                return [], self._in_flight
 
-    def test_activation_env_overrides_config(self, monkeypatch):
-        """环境变量优先于配置。"""
-        import importlib
-        import agents.coordinator as coord
-        monkeypatch.setenv("COORDINATOR_MODE", "1")
-        importlib.reload(coord)
-        assert coord.is_coordinator_mode()
+            def wait_and_drain(self, timeout):
+                self._waited = True
+                return self._notifs, 0
 
-        monkeypatch.delenv("COORDINATOR_MODE", raising=False)
-        importlib.reload(coord)
-        assert not coord.is_coordinator_mode()  # 默认配置 enabled: false
+        fake_state = SimpleNamespace(agent_tasks=_FakeTasks())
+        content, skip = notifications.process_agent_notifications(
+            fake_state, wait_for_inflight=True, wait_timeout=0.1)
+        assert skip is False
+        assert content is not None and "<task-notification>" in content

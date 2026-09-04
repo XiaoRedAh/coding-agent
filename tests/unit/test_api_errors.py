@@ -55,7 +55,6 @@ class TestLoopConfig:
     def test_turn_limits(self):
         assert LoopConfig.DEFAULT_MAX_TURNS == 50
         assert LoopConfig.SUBAGENT_MAX_TURNS == 80
-        assert LoopConfig.COORDINATOR_MAX_TURNS == 20
 
     def test_error_thresholds(self):
         assert LoopConfig.MAX_CONSECUTIVE_TOOL_ERRORS == 5

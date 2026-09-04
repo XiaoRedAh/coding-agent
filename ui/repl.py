@@ -22,7 +22,6 @@ except ImportError:
 from runtime import state
 from context.compact import TokenTracker, CircuitBreaker, auto_compact
 from agents.session import agent_loop
-from agents.coordinator import is_coordinator_mode
 from services.tracing import get_tracer
 
 # REPL 内置斜杠命令（不与技能名冲突时优先按技能处理）
@@ -117,9 +116,6 @@ def run_repl():
     history = []
     tracker = TokenTracker()
     breaker = CircuitBreaker()
-
-    if is_coordinator_mode():
-        print("[Coordinator mode] Use agent tool to delegate work.")
 
     model = str(getattr(state, "MODEL", "") or "")
     print(f"\033[36m╭─ XiaoAgent\033[0m \033[90m({model})\033[0m")

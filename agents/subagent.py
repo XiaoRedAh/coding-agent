@@ -183,7 +183,7 @@ def run_subagent_async(
     主 Agent 在 query.py 中通过 agent_tasks.drain() 接收 <task-notification>。
 
     日志格式：
-      [Coordinator] 启动 Worker: {description} (id: {task_id})
+      [SubAgent] 启动 Worker: {description} (id: {task_id})
       [Worker:{agent_type}] 任务进行中...
       [Worker:{agent_type}] 完成 (id: {task_id})
     """
@@ -191,7 +191,7 @@ def run_subagent_async(
     label = description or agent_type
 
     # 打印启动日志（供用户交互端查看）
-    print(f"  \033[36m[Coordinator]\033[0m 启动 Worker: \033[1m{label}\033[0m (type: {agent_type}, id: {task_id})")
+    print(f"  \033[36m[SubAgent]\033[0m 启动 Worker: \033[1m{label}\033[0m (type: {agent_type}, id: {task_id})")
 
     # 可观测性：后台派发事件（task_id 关联通知与结果）
     trace("agent_dispatch", task_id=task_id, agent_type=agent_type,

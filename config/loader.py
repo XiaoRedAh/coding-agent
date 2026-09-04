@@ -49,10 +49,9 @@ class LLMSettings:
 class LoopSettings:
     default_max_turns: int = 50
     subagent_max_turns: int = 80
-    coordinator_max_turns: int = 20
     max_consecutive_tool_errors: int = 5
     max_consecutive_llm_errors: int = 3
-    coordinator_wait_timeout: int = 120
+    agent_wait_timeout: int = 120   # 主循环等待后台子 Agent 完成的超时（秒）
 
 
 @dataclass(frozen=True)
@@ -117,12 +116,6 @@ class MemorySettings:
 
 
 @dataclass(frozen=True)
-class CoordinatorSettings:
-    enabled: bool = False
-    allowed_tools: tuple = ("agent", "read_file", "list_files", "grep_search", "run_shell")
-
-
-@dataclass(frozen=True)
 class TracingSettings:
     enabled: bool = True
 
@@ -152,7 +145,6 @@ class Settings:
     shell: ShellSettings = field(default_factory=ShellSettings)
     tools: ToolSettings = field(default_factory=ToolSettings)
     memory: MemorySettings = field(default_factory=MemorySettings)
-    coordinator: CoordinatorSettings = field(default_factory=CoordinatorSettings)
     tracing: TracingSettings = field(default_factory=TracingSettings)
     context: ContextSettings = field(default_factory=ContextSettings)
     paths: PathSettings = field(default_factory=PathSettings)
@@ -168,7 +160,6 @@ _SECTION_TYPES = {
     "shell": ShellSettings,
     "tools": ToolSettings,
     "memory": MemorySettings,
-    "coordinator": CoordinatorSettings,
     "tracing": TracingSettings,
     "context": ContextSettings,
     "paths": PathSettings,
