@@ -78,6 +78,7 @@
 | `07-技能系统.md` | Agent Skills、三层披露、双入口、多级来源（附录） | `skills/` |
 | `08-多Agent与工作流.md` | 子 Agent、注册表、SOP 引擎、Coordinator 过时（附录） | `agents/` · `workflows/` |
 | `09-稳定执行.md` | 失败处理全景 + 可观测性 + 复盘方法论（附录） | `engine/errors.py` · `services/tracing.py` |
+| `10-并发与消息传递.md` | 线程/队列/锁/事件/事件总线的底层原理、手搓 vs 现成库 | `agents/task_queue.py` · `workflows/event_bus.py` |
 | `项目评估体系详解.md` | ✅ 与 `../eval/` 对应（不重写） | `eval/` |
 
 > 注：MCP 模块尚未测试重构，暂不编写详解；测试与评估不另行编写新文档。

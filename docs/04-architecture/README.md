@@ -23,6 +23,8 @@ mindmap
       04-权限与安全
       05-上下文管理
       09-稳定执行
+    并发与消息传递
+      10-并发与消息传递
 ```
 
 | 文档 | 主题 | 对应代码 |
@@ -37,6 +39,7 @@ mindmap
 | [07-技能系统](07-技能系统.md) | Agent Skills 规范、三层披露、双入口、多级来源（含附录） | `skills/` · `tools/SkillTool.py` · `ui/repl.py` |
 | [08-多Agent与工作流](08-多Agent与工作流.md) | 子 Agent、注册表、同步/后台、SOP 引擎、Coordinator 移除记录（含附录） | `agents/` · `workflows/` |
 | [09-稳定执行](09-稳定执行.md) | 失败五层全景、恢复机制、可观测性、复盘方法论（含附录） | `engine/errors.py` · `services/tracing.py` |
+| [10-并发与消息传递](10-并发与消息传递.md) | 线程/队列/锁/事件/事件总线的底层原理、手搓 vs 现成库、完整链路 | `agents/task_queue.py` · `workflows/event_bus.py` · `services/background.py` |
 | `项目评估体系详解.md`（保留） | eval/ 体系（不重写） | `eval/` |
 
 ## 归档映射（2026-09-04）
