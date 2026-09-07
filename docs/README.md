@@ -79,9 +79,10 @@
 | `08-多Agent与工作流.md` | 子 Agent、注册表、SOP 引擎、Coordinator 过时（附录） | `agents/` · `workflows/` |
 | `09-稳定执行.md` | 失败处理全景 + 可观测性 + 复盘方法论（附录） | `engine/errors.py` · `services/tracing.py` |
 | `10-并发与消息传递.md` | 线程/队列/锁/事件/事件总线的底层原理、手搓 vs 现成库 | `agents/task_queue.py` · `workflows/event_bus.py` |
+| `11-MCP集成.md` | MCP 客户端、stdio 传输、工具发现/转换、超时与死锁防护 | `services/mcp.py` |
 | `项目评估体系详解.md` | ✅ 与 `../eval/` 对应（不重写） | `eval/` |
 
-> 注：MCP 模块尚未测试重构，暂不编写详解；测试与评估不另行编写新文档。
+> 注：测试与评估不另行编写新文档（沿用 `项目评估体系详解.md`）。
 
 ## archive/ — 归档
 

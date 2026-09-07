@@ -22,7 +22,10 @@ services/mcp.py - MCP（Model Context Protocol）集成
 """
 
 import json
+import os
+import queue
 import re
+import shutil
 import subprocess
 import threading
 import time
@@ -44,8 +47,12 @@ MCP_CONNECT_TIMEOUT = _settings.mcp.connect_timeout  # 连接超时（秒）
 
 
 def _normalize_name(name: str) -> str:
-    """将服务器/工具名称标准化为合法标识符"""
-    return re.sub(r"[^a-zA-Z0-9_]", "_", name).strip("_")
+    """将服务器/工具名称标准化为合法标识符。
+
+    连续的非字母数字字符（含下划线、连字符、点、空格等）折叠为单个下划线，
+    避免名称本身含双下划线时与 mcp__<server>__<tool> 的分隔符产生歧义。
+    """
+    return re.sub(r"[^a-zA-Z0-9]+", "_", name).strip("_")
 
 
 def build_mcp_tool_name(server_name: str, tool_name: str) -> str:
@@ -84,46 +91,82 @@ class McpConnection:
         self._lock = threading.Lock()
         self.tools: list[dict] = []          # 服务器提供的工具列表
         self.instructions: str | None = None  # 服务器的使用说明
+        self._response_queue: queue.Queue | None = None  # stdout 读取线程投递的响应
+        self._stdout_thread: threading.Thread | None = None
+        self._stderr_thread: threading.Thread | None = None
+
+    def _build_command(self) -> tuple[list[str] | str, bool]:
+        """构造启动命令，返回 (cmd, use_shell)。
+
+        Windows 下 npx/npm/yarn 等是 .cmd/.bat shim，CreateProcess 无法直接执行，
+        必须经 shell（cmd.exe）解析；其余（python.exe、node.exe 等真实可执行文件）
+        保持 shell=False，避免 shell 注入与转义问题。
+        """
+        if os.name == "nt":
+            resolved = shutil.which(self.command)
+            if resolved and resolved.lower().endswith((".cmd", ".bat")):
+                # list2cmdline 将列表转成 cmd.exe 可正确解析的引用串
+                return subprocess.list2cmdline([resolved] + self.args), True
+        return [self.command] + self.args, False
 
     def connect(self) -> bool:
         """启动 MCP 服务器进程并完成初始化握手"""
         try:
-            import os
             full_env = {**os.environ, **(self.env or {})}
+            cmd, use_shell = self._build_command()
             self.process = subprocess.Popen(
-                [self.command] + self.args,
+                cmd,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 env=full_env,
                 text=True,
                 bufsize=1,
+                shell=use_shell,
+                encoding="utf-8",     # MCP JSON-RPC 是 UTF-8；Windows 默认 GBK 会解码崩溃
+                errors="replace",     # 防个别坏字节炸掉读取线程
             )
-            # 发送 initialize 请求
+
+            # 启动后台读取线程：stdout 持续读入队列（配合超时），
+            # stderr 持续消费（防止管道缓冲区写满导致子进程死锁）
+            self._response_queue = queue.Queue()
+            self._stdout_thread = threading.Thread(
+                target=self._read_stdout_loop, daemon=True)
+            self._stderr_thread = threading.Thread(
+                target=self._read_stderr_loop, daemon=True)
+            self._stdout_thread.start()
+            self._stderr_thread.start()
+
+            # 发送 initialize 请求（连接阶段用 connect_timeout）
             init_result = self._send_request("initialize", {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {},
                 "clientInfo": {"name": "xiaoagent", "version": "1.0.0"},
-            })
+            }, timeout=MCP_CONNECT_TIMEOUT)
             if init_result is None:
+                self.close()
                 return False
 
             # 提取 instructions
-            info = init_result.get("serverInfo", {})
             self.instructions = init_result.get("instructions")
 
             # 发送 initialized 通知
             self._send_notification("notifications/initialized", {})
 
-            # 获取工具列表
-            tools_result = self._send_request("tools/list", {})
-            if tools_result and "tools" in tools_result:
-                self.tools = tools_result["tools"]
+            # 获取工具列表（发现失败 = 连接失败，避免注册零工具的空连接）
+            tools_result = self._send_request(
+                "tools/list", {}, timeout=MCP_CONNECT_TIMEOUT)
+            if tools_result is None or "tools" not in tools_result:
+                print(f"  [mcp:{self.name}] tools/list failed, treating as connection failure")
+                self.close()
+                return False
+            self.tools = tools_result["tools"]
 
             print(f"  [mcp:{self.name}] connected, {len(self.tools)} tools available")
             return True
         except Exception as e:
             print(f"  [mcp:{self.name}] connection failed: {e}")
+            self.close()
             return False
 
     def call_tool(self, tool_name: str, arguments: dict) -> dict:
@@ -150,8 +193,8 @@ class McpConnection:
                     pass
             self.process = None
 
-    def _send_request(self, method: str, params: dict) -> dict | None:
-        """发送 JSON-RPC 请求并等待响应"""
+    def _send_request(self, method: str, params: dict, timeout: float | None = None) -> dict | None:
+        """发送 JSON-RPC 请求并等待响应（带超时，避免 MCP 挂起卡死主循环）"""
         with self._lock:
             if not self.process or self.process.poll() is not None:
                 return None
@@ -165,43 +208,85 @@ class McpConnection:
             try:
                 self.process.stdin.write(json.dumps(request) + "\n")
                 self.process.stdin.flush()
-                # 读取响应（简单的逐行读取，忽略通知）
-                while True:
-                    line = self.process.stdout.readline()
-                    if not line:
-                        return None
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        response = json.loads(line)
-                    except json.JSONDecodeError:
-                        continue
-                    # 跳过通知（没有 id 字段）
-                    if "id" not in response:
-                        continue
-                    if response.get("id") == self.request_id:
-                        if "error" in response:
-                            err = response["error"]
-                            print(f"  [mcp:{self.name}] error: {err.get('message', err)}")
-                            return None
-                        return response.get("result", {})
             except Exception as e:
-                print(f"  [mcp:{self.name}] request error: {e}")
+                print(f"  [mcp:{self.name}] request write error: {e}")
                 return None
+
+            # 从响应队列读取（读取线程已把 stdout 行投递进来）
+            timeout = MCP_TOOL_TIMEOUT if timeout is None else timeout
+            deadline = time.monotonic() + timeout
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    print(f"  [mcp:{self.name}] timeout waiting for {method} response")
+                    return None
+                try:
+                    line = self._response_queue.get(timeout=remaining)
+                except queue.Empty:
+                    print(f"  [mcp:{self.name}] timeout waiting for {method} response")
+                    return None
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    response = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                # 跳过通知（没有 id 字段）
+                if "id" not in response:
+                    continue
+                if response.get("id") == self.request_id:
+                    if "error" in response:
+                        err = response["error"]
+                        print(f"  [mcp:{self.name}] error: {err.get('message', err)}")
+                        return None
+                    return response.get("result", {})
 
     def _send_notification(self, method: str, params: dict):
         """发送 JSON-RPC 通知（无响应）"""
-        if not self.process or self.process.poll() is not None:
-            return
-        notification = {
-            "jsonrpc": "2.0",
-            "method": method,
-            "params": params,
-        }
+        with self._lock:
+            if not self.process or self.process.poll() is not None:
+                return
+            notification = {
+                "jsonrpc": "2.0",
+                "method": method,
+                "params": params,
+            }
+            try:
+                self.process.stdin.write(json.dumps(notification) + "\n")
+                self.process.stdin.flush()
+            except Exception:
+                pass
+
+    def _read_stdout_loop(self):
+        """后台线程：持续读取 stdout 行并投递到响应队列。
+
+        用独立线程读取，主线程才能在 queue.get(timeout) 上实现超时；
+        否则阻塞的 readline() 会让 MCP 挂起永久卡死主循环。
+        """
+        stream = self.process.stdout
         try:
-            self.process.stdin.write(json.dumps(notification) + "\n")
-            self.process.stdin.flush()
+            while True:
+                line = stream.readline()
+                if not line:            # EOF：进程退出或管道关闭
+                    break
+                self._response_queue.put(line)
+        except Exception:
+            pass
+
+    def _read_stderr_loop(self):
+        """后台线程：持续消费 stderr，防止管道缓冲区写满导致子进程死锁。
+
+        MCP 服务器（如 npx）常往 stderr 写日志/下载进度，若不消费，
+        写满约 64KB 管道缓冲区后子进程写阻塞，反过来触发主循环卡死。
+        这里静默丢弃（如需诊断可改为记录到日志）。
+        """
+        stream = self.process.stderr
+        try:
+            while True:
+                chunk = stream.readline()
+                if not chunk:
+                    break
         except Exception:
             pass
 
