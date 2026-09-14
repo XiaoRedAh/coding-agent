@@ -26,13 +26,13 @@ body{
 }
 .slide.active{display:flex; opacity:1}
 .slide.full{justify-content:center; align-items:center; text-align:center}
-h1{font-size:44px; font-weight:800; letter-spacing:.5px}
-h2{font-size:28px; font-weight:800; margin-bottom:14px; display:flex; align-items:center; gap:12px}
-h2 .num{color:var(--cyan); font-size:25px; font-weight:800; font-family:ui-monospace,monospace}
-h3{font-size:19px; font-weight:700; margin:10px 0 6px}
-.sub{color:var(--dim); font-size:15px; font-weight:500; margin-top:10px}
+h1{font-size:48px; font-weight:800; letter-spacing:.5px}
+h2{font-size:31px; font-weight:800; margin-bottom:14px; display:flex; align-items:center; gap:12px}
+h2 .num{color:var(--cyan); font-size:26px; font-weight:800; font-family:ui-monospace,monospace}
+h3{font-size:20.5px; font-weight:700; margin:10px 0 6px}
+.sub{color:var(--dim); font-size:16.5px; font-weight:500; margin-top:10px}
 .accent{color:var(--cyan)} .amber{color:var(--amber)} .green{color:var(--green)} .red{color:var(--red)} .purple{color:var(--purple)} .pink{color:var(--pink)}
-.badge{display:inline-block; padding:2px 11px; border-radius:999px; font-size:12.5px; font-weight:600;
+.badge{display:inline-block; padding:3px 12px; border-radius:999px; font-size:13.5px; font-weight:600;
   background:rgba(79,142,247,.15); color:var(--blue); border:1px solid rgba(79,142,247,.35); margin:1px 4px 1px 0}
 .badge.c{background:rgba(34,211,238,.12); color:var(--cyan); border-color:rgba(34,211,238,.35)}
 .badge.g{background:rgba(52,211,153,.12); color:var(--green); border-color:rgba(52,211,153,.35)}
@@ -42,32 +42,35 @@ h3{font-size:19px; font-weight:700; margin:10px 0 6px}
 .g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:1fr 1fr 1fr}.g13{grid-template-columns:1fr 2fr}.g4{grid-template-columns:repeat(4,1fr)}
 .card{background:linear-gradient(160deg,var(--card),var(--card2)); border:1px solid var(--line);
   border-radius:14px; padding:15px 18px; overflow:auto}
-.card h4{font-size:16px; margin-bottom:8px; color:var(--cyan); font-weight:700}
-.card ul{list-style:none}.card li{padding:4px 0 4px 19px; position:relative; font-size:14.5px; color:#cbd6e8}
-.card li::before{content:""; position:absolute; left:3px; top:11px; width:7px; height:7px; border-radius:2px; background:var(--blue)}
+.card h4{font-size:18px; margin-bottom:8px; color:var(--cyan); font-weight:700}
+.card ul{list-style:none}.card li{padding:5px 0 5px 21px; position:relative; font-size:16px; color:#cbd6e8}
+.card li::before{content:""; position:absolute; left:4px; top:13px; width:7px; height:7px; border-radius:2px; background:var(--blue)}
 .card li.dim{color:var(--dim)} .card li.g::before{background:var(--green)} .card li.a::before{background:var(--amber)} .card li.r::before{background:var(--red)}
-.tag{font-size:12.5px; color:var(--dim2); font-family:ui-monospace,monospace}
+.tag{font-size:13.5px; color:var(--dim2); font-family:ui-monospace,monospace}
 pre{background:#0d1526; border:1px solid var(--line); border-radius:11px; padding:12px 16px;
-  font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:13.5px; line-height:1.55;
+  font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:15px; line-height:1.55;
   overflow:auto; color:#bcd0f0; white-space:pre}
 code{font-family:ui-monospace,Consolas,monospace; background:rgba(79,142,247,.12); color:#9ec5ff; padding:1px 5px; border-radius:5px; font-size:.9em}
 .kw{color:#c792ea}.fn{color:#82aaff}.cm{color:#5d7195}.str{color:#c3e88d}
-table{width:100%; border-collapse:collapse; font-size:13.5px}
-th,td{padding:7px 11px; text-align:left; border-bottom:1px solid var(--line)}
+table{width:100%; border-collapse:collapse; font-size:15px}
+th,td{padding:8px 12px; text-align:left; border-bottom:1px solid var(--line)}
 th{color:var(--cyan); font-weight:700; background:rgba(79,142,247,.08)}
 td{color:#cbd6e8}.ok{color:var(--green); font-weight:700}.no{color:var(--red)}.mid{color:var(--amber)}
-.notebar{border-left:3px solid var(--amber); background:rgba(251,191,36,.07); padding:8px 12px; border-radius:0 10px 10px 0; font-size:13.5px; color:#e2c98a; margin-top:9px}
+.notebar{border-left:3px solid var(--amber); background:rgba(251,191,36,.07); padding:8px 12px; border-radius:0 10px 10px 0; font-size:15px; color:#e2c98a; margin-top:9px}
 svg{max-width:100%; height:auto}
 svg text{font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
-.chapter{color:var(--purple); font-size:14px; font-weight:700; letter-spacing:2px; text-transform:uppercase}
+.chapter{color:var(--purple); font-size:15px; font-weight:700; letter-spacing:2px; text-transform:uppercase}
 /* 导航 */
 #nav{position:fixed; bottom:20px; right:28px; display:flex; gap:10px; z-index:99; align-items:center}
 #nav button{width:42px; height:42px; border-radius:12px; border:1px solid var(--line); background:var(--card);
   color:var(--txt); font-size:18px; cursor:pointer; transition:.2s}
 #nav button:hover{background:var(--card2); border-color:var(--blue)}
-#pageno{font-size:13px; color:var(--dim); font-family:ui-monospace,monospace}
+#jump{height:42px; border-radius:12px; border:1px solid var(--line); background:var(--card); color:var(--txt);
+  font-size:14px; padding:0 10px; cursor:pointer; max-width:270px; outline:none; font-family:inherit}
+#jump:hover,#jump:focus{border-color:var(--blue)}
+#pageno{font-size:14px; color:var(--dim); font-family:ui-monospace,monospace}
 #progress{position:fixed; top:0; left:0; height:3px; background:linear-gradient(90deg,var(--blue),var(--cyan)); z-index:100; transition:width .3s}
-#hint{position:fixed; bottom:24px; left:28px; font-size:12px; color:var(--dim2)}
+#hint{position:fixed; bottom:24px; left:28px; font-size:13px; color:var(--dim2)}
 </style>
 </head>
 <body>
@@ -79,9 +82,9 @@ svg text{font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
     <div class="badge c">Harness 工程</div>
     <div class="badge">Agent 运行时框架</div>
     <div class="badge g">Python · ReAct · 多Agent · MCP</div>
-    <h1 style="font-size:52px; margin:20px 0 12px">编程 Agent 项目<br><span class="accent">Harness 设计与实现详解</span></h1>
-    <p class="sub" style="font-size:17px; margin-top:8px">围绕 LLM 的完整运行时框架（harness）—— 让 LLM 从「只会说话」到「能可靠地编程」</p>
-    <p class="sub" style="margin-top:34px; font-size:13px">按 <span class="accent">→</span> 键翻页 · 12 个模块 · 500+ 单测通过 · 每模块含调研 + 核心算法 + 图示 + 代码 + 速记</p>
+    <h1 style="font-size:58px; margin:20px 0 12px">编程 Agent 项目<br><span class="accent">Harness 设计与实现详解</span></h1>
+    <p class="sub" style="font-size:19px; margin-top:8px">围绕 LLM 的完整运行时框架（harness）—— 让 LLM 从「只会说话」到「能可靠地编程」</p>
+    <p class="sub" style="margin-top:34px; font-size:14.5px">按 <span class="accent">→</span> 键翻页 · 12 个模块 · 500+ 单测通过 · 每模块含调研 + 核心算法 + 图示 + 代码 + 速记</p>
   </div>
 </section>
 
@@ -146,8 +149,8 @@ svg text{font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
 
 <section class="slide">
   <h2><span class="num">⓪</span> 本项目 harness 全景 · 组件图 + 数据流</h2>
-  <div style="flex:1; display:flex; align-items:center; justify-content:center">
-  <svg width="980" height="580" viewBox="0 0 980 580">
+  <div style="flex:1; display:flex; align-items:center; justify-content:center; position:relative">
+  <svg width="980" height="580" viewBox="0 0 980 580" style="position:absolute; inset:0; margin:auto; width:min(1200px,100%); height:min(710px,100%)">
     <defs>
       <marker id="ah" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#22d3ee"/></marker>
       <marker id="ahg" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#5d7195"/></marker>
@@ -216,7 +219,7 @@ svg text{font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
       <ul>
         <li>像设计 <b>HCI</b>（人机接口）一样设计 <b>ACI</b>——工具描述是<b>给模型看的 UI</b>，好坏直接决定模型用不用得对</li>
       </ul>
-      <pre style="font-size:12px; line-height:1.5"><span class="cm"># ✗ 坏描述（模型不知何时该用、和谁重复）</span>
+      <pre style="font-size:14px; line-height:1.5"><span class="cm"># ✗ 坏描述（模型不知何时该用、和谁重复）</span>
 name: grep
 description: <span class="str">"Search files"</span>
 
@@ -295,7 +298,7 @@ resp.content = [text 块 | tool_use 块]</pre>
   <div class="grid g2" style="flex:1; min-height:0">
     <div class="card">
       <h4>Anthropic 完整模拟 · 角色内嵌 block 列表</h4>
-      <pre style="font-size:12px; line-height:1.45"><span class="cm"># ① 工具定义：name + description + input_schema</span>
+      <pre style="font-size:14px; line-height:1.5"><span class="cm"># ① 工具定义：name + description + input_schema</span>
 tools=[{<span class="str">"name"</span>:<span class="str">"get_sum"</span>,
   <span class="str">"description"</span>:<span class="str">"加两个数"</span>,
   <span class="str">"input_schema"</span>:{<span class="str">"type"</span>:<span class="str">"object"</span>,
@@ -313,7 +316,7 @@ stop_reason = <span class="str">"tool_use"</span>
     </div>
     <div class="card">
       <h4>OpenAI 完整模拟 · 扁平 role 消息序列</h4>
-      <pre style="font-size:12px; line-height:1.45"><span class="cm"># ① 工具定义：type:"function" + function 嵌套</span>
+      <pre style="font-size:14px; line-height:1.5"><span class="cm"># ① 工具定义：type:"function" + function 嵌套</span>
 tools=[{<span class="str">"type"</span>:<span class="str">"function"</span>,<span class="str">"function"</span>:{
   <span class="str">"name"</span>:<span class="str">"get_sum"</span>,<span class="str">"description"</span>:<span class="str">"加两个数"</span>,
   <span class="str">"parameters"</span>:{<span class="str">"type"</span>:<span class="str">"object"</span>,<span class="str">"properties"</span>:{...}}}}]
@@ -475,7 +478,7 @@ consume(role):
   <div class="grid g2" style="flex:1">
     <div class="card">
       <h4>MiniAgentTaskQueue（项目骨架的极简版）</h4>
-      <pre style="font-size:12.5px; line-height:1.5"><span class="kw">class</span> <span class="fn">MiniTaskQueue</span>:
+      <pre style="font-size:14px; line-height:1.5"><span class="kw">class</span> <span class="fn">MiniTaskQueue</span>:
     <span class="kw">def</span> __init__(self):
         self.results = Queue()     <span class="cm"># ① 队列：传数据</span>
         self.in_flight = <span class="str">0</span>
@@ -529,7 +532,7 @@ q.increment(); Thread(target=agent_b).start()
         <li>让 LLM 可靠地<b>操纵文件系统与 shell</b>、拆解任务、自我纠错、长期记忆、多 Agent 协作</li>
         <li>核心命题：把工程问题沉淀成<b>可测试、可观测、可替换</b>的组件</li>
       </ul>
-      <pre style="font-size:12px; margin-top:10px">coding-agent/
+      <pre style="font-size:14px; margin-top:10px">coding-agent/
 ├── engine/     循环骨架+通知      ├── tools/     8 个工具
 ├── agents/     主/子Agent+队列     ├── services/  记忆·MCP·权限·后台
 ├── workflows/  SOP 工作流引擎      ├── context/   prompt·压缩
@@ -552,8 +555,8 @@ q.increment(); Thread(target=agent_b).start()
 <!-- ============ 4. 架构全景 ============ -->
 <section class="slide">
   <h2><span class="num">③</span> 分层架构全景图</h2>
-  <div style="flex:1; display:flex; align-items:center; justify-content:center">
-  <svg width="980" height="560" viewBox="0 0 980 560">
+  <div style="flex:1; display:flex; align-items:center; justify-content:center; position:relative">
+  <svg width="980" height="560" viewBox="0 0 980 560" style="position:absolute; inset:0; margin:auto; width:min(1200px,100%); height:min(686px,100%)">
     <defs>
       <linearGradient id="lg" x1="0" y1="0" x2="1" y2="0">
         <stop offset="0" stop-color="#4f8ef7"/><stop offset="1" stop-color="#22d3ee"/>
@@ -627,41 +630,41 @@ q.increment(); Thread(target=agent_b).start()
   <div class="grid g2" style="flex:1">
     <div class="card">
       <h4>演进时间线</h4>
-      <svg width="440" height="330" viewBox="0 0 440 330">
+      <svg width="866" height="572" viewBox="0 0 545 360">
         <defs><marker id="ev" markerWidth="7" markerHeight="6" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#8fa3c0"/></marker></defs>
-        <line x1="30" y1="165" x2="410" y2="165" stroke="#2a3a5c" stroke-width="3"/>
-        <g font-size="10.5">
-          <circle cx="50" cy="165" r="8" fill="#f87171"/>
-          <text x="50" y="130" fill="#fca5a5" text-anchor="middle" font-weight="700" font-size="11">单体期</text>
-          <text x="50" y="146" fill="#8fa3c0" text-anchor="middle">query.py 一锅烩</text>
-          <text x="50" y="196" fill="#5d7195" text-anchor="middle">循环/通知/权限/装配</text>
-          <text x="50" y="210" fill="#5d7195" text-anchor="middle">全在一个文件</text>
+        <line x1="55" y1="185" x2="510" y2="185" stroke="#2a3a5c" stroke-width="3"/>
+        <g>
+          <circle cx="70" cy="185" r="9" fill="#f87171"/>
+          <text x="70" y="150" fill="#fca5a5" text-anchor="middle" font-weight="700" font-size="13">单体期</text>
+          <text x="70" y="168" fill="#8fa3c0" text-anchor="middle" font-size="12">query.py 一锅烩</text>
+          <text x="70" y="220" fill="#5d7195" text-anchor="middle" font-size="12">循环/通知/权限/装配</text>
+          <text x="70" y="238" fill="#5d7195" text-anchor="middle" font-size="12">全在一个文件</text>
 
-          <circle cx="150" cy="165" r="8" fill="#fbbf24"/>
-          <text x="150" y="130" fill="#fcd34d" text-anchor="middle" font-weight="700" font-size="11">S2</text>
-          <text x="150" y="146" fill="#8fa3c0" text-anchor="middle">safe_path 动态读</text>
-          <text x="150" y="196" fill="#5d7195" text-anchor="middle">WORKDIR 一处生效</text>
-          <text x="150" y="210" fill="#5d7195" text-anchor="middle">单测可隔离</text>
+          <circle cx="180" cy="185" r="9" fill="#fbbf24"/>
+          <text x="180" y="150" fill="#fcd34d" text-anchor="middle" font-weight="700" font-size="13">S2</text>
+          <text x="180" y="168" fill="#8fa3c0" text-anchor="middle" font-size="12">safe_path 动态读</text>
+          <text x="180" y="220" fill="#5d7195" text-anchor="middle" font-size="12">WORKDIR 一处生效</text>
+          <text x="180" y="238" fill="#5d7195" text-anchor="middle" font-size="12">单测可隔离</text>
 
-          <circle cx="250" cy="165" r="8" fill="#4f8ef7"/>
-          <text x="250" y="130" fill="#9ec5ff" text-anchor="middle" font-weight="700" font-size="11">S3 统一循环</text>
-          <text x="250" y="146" fill="#8fa3c0" text-anchor="middle">AgentLoop 抽出</text>
-          <text x="250" y="196" fill="#5d7195" text-anchor="middle">驱动：事故C</text>
-          <text x="250" y="210" fill="#5d7195" text-anchor="middle">双循环漂移</text>
+          <circle cx="290" cy="185" r="9" fill="#4f8ef7"/>
+          <text x="290" y="150" fill="#9ec5ff" text-anchor="middle" font-weight="700" font-size="13">S3 统一循环</text>
+          <text x="290" y="168" fill="#8fa3c0" text-anchor="middle" font-size="12">AgentLoop 抽出</text>
+          <text x="290" y="220" fill="#5d7195" text-anchor="middle" font-size="12">驱动：事故C</text>
+          <text x="290" y="238" fill="#5d7195" text-anchor="middle" font-size="12">双循环漂移</text>
 
-          <circle cx="350" cy="165" r="8" fill="#34d399"/>
-          <text x="350" y="130" fill="#6ee7b7" text-anchor="middle" font-weight="700" font-size="11">S4/S5</text>
-          <text x="350" y="146" fill="#8fa3c0" text-anchor="middle">拆通知+收敛后台</text>
-          <text x="350" y="196" fill="#5d7195" text-anchor="middle">BackgroundManager</text>
-          <text x="350" y="210" fill="#5d7195" text-anchor="middle">单一后台路径</text>
+          <circle cx="400" cy="185" r="9" fill="#34d399"/>
+          <text x="400" y="150" fill="#6ee7b7" text-anchor="middle" font-weight="700" font-size="13">S4/S5</text>
+          <text x="400" y="168" fill="#8fa3c0" text-anchor="middle" font-size="12">拆通知+收敛后台</text>
+          <text x="400" y="220" fill="#5d7195" text-anchor="middle" font-size="12">BackgroundManager</text>
+          <text x="400" y="238" fill="#5d7195" text-anchor="middle" font-size="12">单一后台路径</text>
 
-          <circle cx="410" cy="165" r="8" fill="#a78bfa"/>
-          <text x="410" y="130" fill="#c4b5fd" text-anchor="middle" font-weight="700" font-size="11">2026-09</text>
-          <text x="410" y="196" fill="#5d7195" text-anchor="middle">Coordinator</text>
-          <text x="410" y="210" fill="#5d7195" text-anchor="middle">移除</text>
+          <circle cx="500" cy="185" r="9" fill="#a78bfa"/>
+          <text x="500" y="150" fill="#c4b5fd" text-anchor="middle" font-weight="700" font-size="13">2026-09</text>
+          <text x="500" y="220" fill="#5d7195" text-anchor="middle" font-size="12">Coordinator</text>
+          <text x="500" y="238" fill="#5d7195" text-anchor="middle" font-size="12">移除</text>
         </g>
-        <text x="220" y="270" fill="#8fa3c0" text-anchor="middle" font-size="12">箭头上的每个标签，都能在事故复盘里找到触发事件</text>
-        <text x="220" y="295" fill="#5d7195" text-anchor="middle" font-size="11">不是"预先设计出完美架构"——是"事故 → 复盘 → 定位结构问题 → 重构"</text>
+        <text x="272" y="298" fill="#8fa3c0" text-anchor="middle" font-size="12.5">箭头上的每个标签，都能在事故复盘里找到触发事件</text>
+        <text x="272" y="322" fill="#5d7195" text-anchor="middle" font-size="12">不是"预先设计出完美架构"——是"事故 → 复盘 → 定位结构问题 → 重构"</text>
       </svg>
     </div>
     <div class="card">
@@ -722,9 +725,9 @@ q.increment(); Thread(target=agent_b).start()
         <li class="g"><b>Observation（观察）</b>：动作获得的外部信息，反馈到下一步推理</li>
       </ul>
     </div>
-    <div class="card">
+    <div class="card" style="display:flex; flex-direction:column">
       <h4>ReAct 循环</h4>
-      <svg width="340" height="320" viewBox="0 0 340 320">
+      <svg width="340" height="320" viewBox="0 0 340 320" style="flex:1; min-height:0; width:100%">
         <defs><marker id="rea" markerWidth="8" markerHeight="7" refX="7" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#22d3ee"/></marker></defs>
         <rect x="95" y="20" width="150" height="60" rx="12" fill="#1f2e4d" stroke="#4f8ef7"/>
         <text x="170" y="44" fill="#9ec5ff" text-anchor="middle" font-weight="700">Thought 思考</text>
@@ -789,7 +792,7 @@ A（CoT）:
         <tr><td><b>Act-only</b></td><td class="no">✗</td><td class="ok">✓</td><td>缺推理轨迹，<b>可解释性差</b>，无法多步规划</td></tr>
         <tr><td><b>ReAct</b></td><td class="ok">✓</td><td class="ok">✓</td><td>推理指导行动 + 观察纠正推理</td></tr>
       </table>
-      <pre style="font-size:12px; line-height:1.5; margin-top:8px"><span class="cm"># 同一任务"修复登录超时 bug"，三种范式：</span>
+      <pre style="font-size:14px; line-height:1.5; margin-top:8px"><span class="cm"># 同一任务"修复登录超时 bug"，三种范式：</span>
 CoT:      <span class="str">"多半是 token 过期（其实是 Redis 挂了）"</span>
           → 直接改错地方，错得很自信
 Act-only: sed -i 换掉 timeout 参数 → 试试 → 不行
@@ -837,6 +840,14 @@ tool_use {name: <span class="str">"search"</span>, input: {query: <span class="s
         <li class="g"><b>自由文本 → 结构化</b>：从"解析 Thought/Action 文本"到"原生 function calling"</li>
         <li class="g"><b>单步 → 多步并行</b>：一轮可同时调用多个独立工具</li>
       </ul>
+      <h4 style="margin-top:10px">Function Calling 是什么（本质）</h4>
+      <ul>
+        <li class="g"><b>定义</b>：LLM 的<b>模型端能力</b>——经指令微调（instruct tuning）后，模型在需要调用工具时不再输出普通文本，而是输出<b>结构化的调用请求</b>（工具名 + 参数，如 <code>tool_use / tool_calls</code> 块）</li>
+        <li class="g"><b>角色分工</b>：模型以 <b>assistant 角色</b>发出请求块；<b>外界（harness 代码）</b>拿到请求后按参数执行对应工具；执行结果以 <b>user 角色的 tool_result 块</b>回传——模型下一轮看到结果继续推理</li>
+        <li class="g"><b>关键澄清</b>：模型只<b>表达意图</b>、从不亲手执行——执行永远是外部代码的事（这正是 harness 存在的意义）</li>
+        <li class="g"><b>为什么可靠</b>：能力来自<b>指令微调</b>而非 prompt 约定；格式由 API 原生定义（参数走 JSON Schema 校验），不再需要正则解析文本</li>
+      </ul>
+      <div class="notebar"><b>一句话</b>：Function Calling = 模型被训练出的「伸手」能力——<b>assistant 发请求 → harness 执行 → user 回结果</b>，请求与结果正好分居两种消息角色，模型全程只说话不动手</div>
     </div>
     <div class="card">
       <h4>业界实现 + max_turns 语义</h4>
@@ -875,50 +886,50 @@ tool_use {name: <span class="str">"search"</span>, input: {query: <span class="s
     </div>
     <div class="card">
       <h4>六道防线 · 介入点（在循环的哪一步生效）</h4>
-      <svg width="420" height="352" viewBox="0 0 420 352">
+      <svg width="1178" height="573" viewBox="0 0 740 360">
         <defs><marker id="df" markerWidth="7" markerHeight="6" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#5d7195"/></marker></defs>
-        <g font-size="10.5">
-          <rect x="8" y="10" width="86" height="42" rx="8" fill="#16233f" stroke="#4f8ef7"/>
-          <text x="51" y="35" fill="#9ec5ff" text-anchor="middle" font-weight="700">while 轮次</text>
-          <rect x="112" y="10" width="300" height="42" rx="9" fill="#1a2740" stroke="#34d399"/>
-          <text x="262" y="26" fill="#6ee7b7" font-weight="700">① max_turns：主 50 / 子 80</text>
-          <text x="262" y="44" fill="#8fa3c0">轮次耗尽即终止（while 条件本身）</text>
-          <line x1="96" y1="31" x2="110" y2="31" stroke="#5d7195" stroke-width="1.5" marker-end="url(#df)"/>
+        <g>
+          <rect x="8" y="12" width="104" height="48" rx="9" fill="#16233f" stroke="#4f8ef7"/>
+          <text x="60" y="40" fill="#9ec5ff" text-anchor="middle" font-weight="700" font-size="12.5">while 轮次</text>
+          <rect x="130" y="12" width="580" height="48" rx="10" fill="#1a2740" stroke="#34d399"/>
+          <text x="420" y="32" fill="#6ee7b7" text-anchor="middle" font-weight="700" font-size="13">① max_turns：主 50 / 子 80</text>
+          <text x="420" y="50" fill="#8fa3c0" text-anchor="middle" font-size="12">轮次耗尽即终止（while 条件本身）</text>
+          <line x1="114" y1="36" x2="128" y2="36" stroke="#5d7195" stroke-width="1.5" marker-end="url(#df)"/>
 
-          <rect x="8" y="66" width="86" height="42" rx="8" fill="#16233f" stroke="#4f8ef7"/>
-          <text x="51" y="91" fill="#9ec5ff" text-anchor="middle" font-weight="700">pre_turn</text>
-          <rect x="112" y="66" width="300" height="42" rx="9" fill="#1a2740" stroke="#34d399"/>
-          <text x="262" y="82" fill="#6ee7b7" font-weight="700">② 等待闭环</text>
-          <text x="262" y="100" fill="#8fa3c0">有在飞任务 → skip LLM 继续等（防结果丢失）</text>
-          <line x1="96" y1="87" x2="110" y2="87" stroke="#5d7195" stroke-width="1.5" marker-end="url(#df)"/>
+          <rect x="8" y="68" width="104" height="48" rx="9" fill="#16233f" stroke="#4f8ef7"/>
+          <text x="60" y="96" fill="#9ec5ff" text-anchor="middle" font-weight="700" font-size="12.5">pre_turn</text>
+          <rect x="130" y="68" width="580" height="48" rx="10" fill="#1a2740" stroke="#34d399"/>
+          <text x="420" y="88" fill="#6ee7b7" text-anchor="middle" font-weight="700" font-size="13">② 等待闭环</text>
+          <text x="420" y="106" fill="#8fa3c0" text-anchor="middle" font-size="12">有在飞任务 → skip LLM 继续等（防结果丢失）</text>
+          <line x1="114" y1="92" x2="128" y2="92" stroke="#5d7195" stroke-width="1.5" marker-end="url(#df)"/>
 
-          <rect x="8" y="122" width="86" height="42" rx="8" fill="#16233f" stroke="#a78bfa"/>
-          <text x="51" y="147" fill="#c4b5fd" text-anchor="middle" font-weight="700">LLM 异常</text>
-          <rect x="112" y="122" width="300" height="42" rx="9" fill="#1a2740" stroke="#fbbf24"/>
-          <text x="262" y="138" fill="#fcd34d" font-weight="700">③ 连续 LLM 错误 &gt;3 停</text>
-          <text x="262" y="156" fill="#8fa3c0">异常注入 &lt;error&gt; 供自纠；一次成功即清零</text>
-          <line x1="96" y1="143" x2="110" y2="143" stroke="#5d7195" stroke-width="1.5" marker-end="url(#df)"/>
+          <rect x="8" y="124" width="104" height="48" rx="9" fill="#16233f" stroke="#a78bfa"/>
+          <text x="60" y="152" fill="#c4b5fd" text-anchor="middle" font-weight="700" font-size="12.5">LLM 异常</text>
+          <rect x="130" y="124" width="580" height="48" rx="10" fill="#1a2740" stroke="#fbbf24"/>
+          <text x="420" y="144" fill="#fcd34d" text-anchor="middle" font-weight="700" font-size="13">③ 连续 LLM 错误 &gt;3 停</text>
+          <text x="420" y="162" fill="#8fa3c0" text-anchor="middle" font-size="12">异常注入 &lt;error&gt; 供自纠；一次成功即清零</text>
+          <line x1="114" y1="148" x2="128" y2="148" stroke="#5d7195" stroke-width="1.5" marker-end="url(#df)"/>
 
-          <rect x="8" y="178" width="86" height="42" rx="8" fill="#16233f" stroke="#a78bfa"/>
-          <text x="51" y="203" fill="#c4b5fd" text-anchor="middle" font-weight="700">响应解析</text>
-          <rect x="112" y="178" width="300" height="42" rx="9" fill="#1a2740" stroke="#fbbf24"/>
-          <text x="262" y="194" fill="#fcd34d" font-weight="700">④ 空响应检测 + ⑤ 截断续写</text>
-          <text x="262" y="212" fill="#8fa3c0">空→注入续跑（防 400 毒消息）；截断→从断点继续</text>
-          <line x1="96" y1="199" x2="110" y2="199" stroke="#5d7195" stroke-width="1.5" marker-end="url(#df)"/>
+          <rect x="8" y="180" width="104" height="48" rx="9" fill="#16233f" stroke="#a78bfa"/>
+          <text x="60" y="208" fill="#c4b5fd" text-anchor="middle" font-weight="700" font-size="12.5">响应解析</text>
+          <rect x="130" y="180" width="580" height="48" rx="10" fill="#1a2740" stroke="#fbbf24"/>
+          <text x="420" y="200" fill="#fcd34d" text-anchor="middle" font-weight="700" font-size="13">④ 空响应检测 + ⑤ 截断续写</text>
+          <text x="420" y="218" fill="#8fa3c0" text-anchor="middle" font-size="12">空→注入续跑（防 400 毒消息）；截断→从断点继续</text>
+          <line x1="114" y1="204" x2="128" y2="204" stroke="#5d7195" stroke-width="1.5" marker-end="url(#df)"/>
 
-          <rect x="8" y="234" width="86" height="42" rx="8" fill="#16233f" stroke="#34d399"/>
-          <text x="51" y="259" fill="#6ee7b7" text-anchor="middle" font-weight="700">工具执行</text>
-          <rect x="112" y="234" width="300" height="42" rx="9" fill="#1a2740" stroke="#fbbf24"/>
-          <text x="262" y="250" fill="#fcd34d" font-weight="700">⑥ 连续工具错误 &gt;5 停（同轮内）</text>
-          <text x="262" y="268" fill="#8fa3c0">错误是数据但有限度——连续失败说明方向错了</text>
-          <line x1="96" y1="255" x2="110" y2="255" stroke="#5d7195" stroke-width="1.5" marker-end="url(#df)"/>
+          <rect x="8" y="236" width="104" height="48" rx="9" fill="#16233f" stroke="#34d399"/>
+          <text x="60" y="264" fill="#6ee7b7" text-anchor="middle" font-weight="700" font-size="12.5">工具执行</text>
+          <rect x="130" y="236" width="580" height="48" rx="10" fill="#1a2740" stroke="#fbbf24"/>
+          <text x="420" y="256" fill="#fcd34d" text-anchor="middle" font-weight="700" font-size="13">⑥ 连续工具错误 &gt;5 停（同轮内）</text>
+          <text x="420" y="274" fill="#8fa3c0" text-anchor="middle" font-size="12">错误是数据但有限度——连续失败说明方向错了</text>
+          <line x1="114" y1="260" x2="128" y2="260" stroke="#5d7195" stroke-width="1.5" marker-end="url(#df)"/>
 
-          <rect x="8" y="290" width="86" height="42" rx="8" fill="#16233f" stroke="#f472b6"/>
-          <text x="51" y="315" fill="#f9a8d4" text-anchor="middle" font-weight="700">end_turn</text>
-          <rect x="112" y="290" width="300" height="42" rx="9" fill="#1a2740" stroke="#f472b6"/>
-          <text x="262" y="306" fill="#f9a8d4" font-weight="700">⑦ 最后一拦：等待闭环再查 pending</text>
-          <text x="262" y="324" fill="#8fa3c0">有后台任务/在飞子 Agent → 不结束回合</text>
-          <line x1="96" y1="311" x2="110" y2="311" stroke="#5d7195" stroke-width="1.5" marker-end="url(#df)"/>
+          <rect x="8" y="292" width="104" height="48" rx="9" fill="#16233f" stroke="#f472b6"/>
+          <text x="60" y="320" fill="#f9a8d4" text-anchor="middle" font-weight="700" font-size="12.5">end_turn</text>
+          <rect x="130" y="292" width="580" height="48" rx="10" fill="#1a2740" stroke="#f472b6"/>
+          <text x="420" y="312" fill="#f9a8d4" text-anchor="middle" font-weight="700" font-size="13">⑦ 最后一拦：等待闭环再查 pending</text>
+          <text x="420" y="330" fill="#8fa3c0" text-anchor="middle" font-size="12">有后台任务/在飞子 Agent → 不结束回合</text>
+          <line x1="114" y1="316" x2="128" y2="316" stroke="#5d7195" stroke-width="1.5" marker-end="url(#df)"/>
         </g>
       </svg>
       <div class="notebar">这些防线大多是<b>真实事故</b>催生的：空 assistant 400 连击、异步结果丢失、自杀死进程——<b>每一道背后都有一个故事</b></div>
@@ -931,7 +942,7 @@ tool_use {name: <span class="str">"search"</span>, input: {query: <span class="s
   <div class="grid g2" style="flex:1">
     <div class="card">
       <h4>AgentLoop.run() 骨架（hook 调用点）</h4>
-      <pre style="font-size:12px; line-height:1.5"><span class="kw">while</span> turns &lt; spec.max_turns:
+      <pre style="font-size:14px; line-height:1.5"><span class="kw">while</span> turns &lt; spec.max_turns:
     <span class="kw">if</span> hooks.pre_turn(ctx, msgs):     <span class="cm"># ①通知drain+等待闭环+压缩</span>
         <span class="kw">continue</span>                        <span class="cm">#   可要求跳过本轮 LLM</span>
     hooks.on_llm_start(ctx)              <span class="cm"># ②状态提示</span>
@@ -1047,7 +1058,7 @@ tool_use {name: <span class="str">"search"</span>, input: {query: <span class="s
   <div class="grid g2" style="flex:1">
     <div class="card">
       <h4>计划长什么样（真实格式）</h4>
-      <pre style="font-size:12px; line-height:1.5"><span class="cm"># 模型调用 TodoWrite 的输入</span>
+      <pre style="font-size:14px; line-height:1.5"><span class="cm"># 模型调用 TodoWrite 的输入</span>
 {<span class="str">"todos"</span>: [
   {<span class="str">"content"</span>: <span class="str">"调研 auth 模块"</span>,
    <span class="str">"status"</span>: <span class="str">"completed"</span>},
@@ -1065,7 +1076,7 @@ tool_use {name: <span class="str">"search"</span>, input: {query: <span class="s
     </div>
     <div class="card">
       <h4>提醒闭环 + 子 Agent 禁区</h4>
-      <pre style="font-size:12px; line-height:1.5"><span class="cm"># 连续 3 轮未更新 且 有未完成项：</span>
+      <pre style="font-size:14px; line-height:1.5"><span class="cm"># 连续 3 轮未更新 且 有未完成项：</span>
 rounds_without_todo &gt;= <span class="str">3</span> <span class="kw">and</span>
   state.todo.has_open_items()
   → 注入 user 消息：
@@ -1162,8 +1173,8 @@ resp2.stop_reason = <span class="str">"end_turn"</span></pre>
 
 <section class="slide">
   <h2><span class="num">④</span> 多 Agent · 七种拓扑一图速览</h2>
-  <div class="card" style="flex:1; display:flex; align-items:center; justify-content:center">
-  <svg width="930" height="500" viewBox="0 0 930 500">
+  <div class="card" style="flex:1; display:flex; align-items:center; justify-content:center; position:relative">
+  <svg width="930" height="500" viewBox="0 0 930 500" style="position:absolute; inset:0; margin:auto; width:min(1250px,100%); height:min(672px,100%)">
     <defs><marker id="tp" markerWidth="7" markerHeight="6" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#8fa3c0"/></marker></defs>
     <g font-size="13" font-weight="700" fill="#e6edf6">
       <text x="112" y="26" text-anchor="middle">① 单 Agent</text>
@@ -1454,7 +1465,7 @@ submit(result); event.set()  <span class="cm"># 唤醒等待者</span></pre>
   <div class="grid g2" style="flex:1">
     <div class="card">
       <h4>控制权光谱（谁决定"下一步做什么"）</h4>
-      <svg width="420" height="235" viewBox="0 0 420 235">
+      <svg width="840" height="470" viewBox="0 0 420 235">
         <defs><marker id="wf2" markerWidth="7" markerHeight="6" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#8fa3c0"/></marker></defs>
         <text x="210" y="24" fill="#5d7195" text-anchor="middle" font-size="11">代码决定下一步 ←──────────→ 模型决定下一步</text>
         <g font-size="12" font-weight="700">
@@ -1543,7 +1554,7 @@ submit(result); event.set()  <span class="cm"># 唤醒等待者</span></pre>
   <div class="grid g2" style="flex:1">
     <div class="card">
       <h4>SOP 三角色 + 失败回环</h4>
-      <svg width="430" height="230" viewBox="0 0 430 230">
+      <svg width="860" height="460" viewBox="0 0 430 230">
         <defs><marker id="ar2" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#a78bfa"/></marker></defs>
         <rect x="20" y="95" width="100" height="46" rx="10" fill="#1f2e4d" stroke="#22d3ee"/>
         <text x="70" y="123" fill="#67e8f9" text-anchor="middle" font-weight="700">分析</text>
@@ -1581,9 +1592,9 @@ submit(result); event.set()  <span class="cm"># 唤醒等待者</span></pre>
 <section class="slide">
   <h2><span class="num">④</span> 工作流 · 一次 /workflow 的完整走查</h2>
   <div class="grid g2" style="flex:1">
-    <div class="card">
+    <div class="card" style="display:flex; flex-direction:column">
       <h4>角色协作时序（事件驱动）</h4>
-      <svg width="360" height="330" viewBox="0 0 360 330">
+      <svg width="360" height="330" viewBox="0 0 360 330" style="flex:1; min-height:0; width:100%">
         <defs><marker id="wf" markerWidth="8" markerHeight="7" refX="7" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#a78bfa"/></marker></defs>
         <rect x="10" y="8" width="90" height="30" rx="8" fill="#1f2e4d" stroke="#22d3ee"/>
         <text x="55" y="28" fill="#67e8f9" text-anchor="middle" font-weight="700">分析</text>
@@ -1717,7 +1728,7 @@ submit(result); event.set()  <span class="cm"># 唤醒等待者</span></pre>
   <div class="grid g2" style="flex:1">
     <div class="card">
       <h4>后台任务通知（源码真实格式）</h4>
-      <pre style="font-size:12px; line-height:1.45"><span class="cm"># 后台子 Agent 完成 → 注入 user 消息</span>
+      <pre style="font-size:14px; line-height:1.5"><span class="cm"># 后台子 Agent 完成 → 注入 user 消息</span>
 &lt;task-notification&gt;
   &lt;task-id&gt;agent_0908_01&lt;/task-id&gt;
   &lt;type&gt;explore&lt;/type&gt;
@@ -1739,7 +1750,7 @@ submit(result); event.set()  <span class="cm"># 唤醒等待者</span></pre>
     </div>
     <div class="card">
       <h4>错误 / 提醒 / 续写注入</h4>
-      <pre style="font-size:12px; line-height:1.45"><span class="cm"># LLM 异常 → 注入让模型自纠（截 200 字符）</span>
+      <pre style="font-size:14px; line-height:1.5"><span class="cm"># LLM 异常 → 注入让模型自纠（截 200 字符）</span>
 &lt;error&gt;rate_limit: 重试 3 次仍失败&lt;/error&gt;
 
 <span class="cm"># 空响应 → 注入续跑</span>
@@ -1770,7 +1781,7 @@ before finishing.&lt;/background-tasks-pending&gt;
   <div class="grid g2" style="flex:1">
     <div class="card">
       <h4>一轮后台任务的生命周期（真实注入位置）</h4>
-      <pre style="font-size:11.5px; line-height:1.5">messages = [
+      <pre style="font-size:13px; line-height:1.5">messages = [
  {<span class="kw">"role"</span>:<span class="str">"user"</span>,
   <span class="str">"content"</span>:<span class="str">"调研 auth 模块，给重构方案"</span>},
  {<span class="kw">"role"</span>:<span class="str">"assistant"</span>,
@@ -1817,7 +1828,7 @@ before finishing.&lt;/background-tasks-pending&gt;
   <div class="grid g2" style="flex:1">
     <div class="card">
       <h4>工具输出截断（utils/truncate.py 真实格式）</h4>
-      <pre style="font-size:12px; line-height:1.45">keep_each = (MAX - 60) // 2
+      <pre style="font-size:14px; line-height:1.5">keep_each = (MAX - 60) // 2
 result[:keep_each]
 + <span class="str">"\n\n[... truncated 18432 chars ...]\n\n"</span>
 + result[-keep_each:]
@@ -1839,7 +1850,7 @@ $ npm test
     </div>
     <div class="card">
       <h4>工作流交付物（artifacts 目录树）</h4>
-      <pre style="font-size:12px; line-height:1.45">artifacts/
+      <pre style="font-size:14px; line-height:1.5">artifacts/
 ├── analysis.md          <span class="cm"># 需求角色产物</span>
 ├── implementation/
 │   ├── main.py
@@ -1891,7 +1902,7 @@ $ npm test
   <div class="grid g2" style="flex:1">
     <div class="card">
       <h4>五站流水线</h4>
-      <svg width="440" height="240" viewBox="0 0 440 240">
+      <svg width="866" height="472" viewBox="0 0 440 240">
         <defs><marker id="tj" markerWidth="8" markerHeight="7" refX="7" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#22d3ee"/></marker></defs>
         <rect x="10" y="15" width="180" height="42" rx="10" fill="#1f2e4d" stroke="#4f8ef7"/>
         <text x="100" y="34" fill="#9ec5ff" text-anchor="middle" font-weight="700" font-size="12">① 模型产出 tool_use</text>
@@ -2038,7 +2049,7 @@ content = replace(matches[<span class="str">0</span>], new_str)</pre>
         <li class="g">本项目选文件式：简单、可观测、对齐 memdir 约定</li>
         <li class="g"><b>只记不可推导</b>：代码可读的不记，只记偏好/决策/背景</li>
       </ul>
-      <pre style="font-size:12px; margin-top:6px"><span class="cm"># 两流派的样子</span>
+      <pre style="font-size:14px; margin-top:6px"><span class="cm"># 两流派的样子</span>
 文件式:   memory/*.md ──索引常驻── read_file 按需
           （直接 cat / git 管理，人类可读）
 MemGPT:   核心记忆(RAM) ⇄ 归档记忆(磁盘)
@@ -2228,7 +2239,7 @@ scripts/      <span class="cm"># 脚本（按需跑）</span></pre>
   <div class="grid g2" style="flex:1">
     <div class="card">
       <h4>三层渐进披露（成本漏斗）</h4>
-      <svg width="400" height="200" viewBox="0 0 400 200">
+      <svg width="800" height="400" viewBox="0 0 400 200">
         <polygon points="40,15 360,15 310,70 90,70" fill="#1f2e4d" stroke="#34d399" stroke-width="1.5"/>
         <text x="200" y="38" fill="#6ee7b7" text-anchor="middle" font-size="12" font-weight="700">第 1 层 · 简介列表常驻 system（S×15）</text>
         <text x="200" y="58" fill="#8fa3c0" text-anchor="middle" font-size="10.5">谁决定：框架自动注入（每轮都有）</text>
@@ -2295,7 +2306,7 @@ scripts/      <span class="cm"># 脚本（按需跑）</span></pre>
   <div class="grid g2" style="flex:1">
     <div class="card">
       <h4>四泳道时序</h4>
-      <svg width="440" height="330" viewBox="0 0 440 330">
+      <svg width="440" height="330" viewBox="0 0 440 330" style="display:block; width:min(530px,100%); height:auto; margin:0 auto">
         <defs><marker id="sk" markerWidth="8" markerHeight="7" refX="7" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#a78bfa"/></marker></defs>
         <rect x="10" y="8" width="90" height="30" rx="8" fill="#1f2e4d" stroke="#4f8ef7"/>
         <text x="55" y="28" fill="#9ec5ff" text-anchor="middle" font-weight="700" font-size="12">用户</text>
@@ -2314,14 +2325,14 @@ scripts/      <span class="cm"># 脚本（按需跑）</span></pre>
         <path d="M175 92 L293 92" stroke="#a78bfa" stroke-width="2" marker-end="url(#sk)"/>
         <text x="234" y="84" fill="#8fa3c0" text-anchor="middle" font-size="10">skill_load(name, args)</text>
         <path d="M295 120 L295 148" stroke="#34d399" stroke-width="2" marker-end="url(#sk)"/>
-        <text x="352" y="136" fill="#6ee7b7" font-size="10">$ARGUMENTS→src/ · ${SKILL_DIR}</text>
+        <text x="345" y="136" fill="#6ee7b7" text-anchor="middle" font-size="10">$ARGUMENTS→src/ · ${SKILL_DIR}</text>
         <path d="M295 178 L177 178" stroke="#a78bfa" stroke-width="2" marker-end="url(#sk)"/>
         <text x="236" y="170" fill="#8fa3c0" text-anchor="middle" font-size="10">&lt;skill name="review-code"&gt;手册&lt;/skill&gt;</text>
         <path d="M175 208 L398 208" stroke="#a78bfa" stroke-width="2" marker-end="url(#sk)"/>
         <text x="286" y="200" fill="#8fa3c0" text-anchor="middle" font-size="10">注入 user 消息</text>
         <text x="286" y="232" fill="#6ee7b7" text-anchor="middle" font-size="10">模型按手册：read_file → 检查 → 输出报告（用现有工具）</text>
         <path d="M400 258 L400 286" stroke="#fbbf24" stroke-width="2" marker-end="url(#sk)"/>
-        <text x="330" y="278" fill="#8fa3c0" font-size="10">若发生压缩：XML 锚点恢复技能</text>
+        <text x="330" y="278" fill="#8fa3c0" text-anchor="middle" font-size="10">若发生压缩：XML 锚点恢复技能</text>
       </svg>
     </div>
     <div class="card">
@@ -2430,7 +2441,7 @@ Notification: {method, params}        <span class="cm"># 无 id 无响应</span>
   <div class="grid g2" style="flex:1">
     <div class="card">
       <h4>四大角色 · 三大能力</h4>
-      <svg width="420" height="200" viewBox="0 0 420 200">
+      <svg width="840" height="400" viewBox="0 0 420 200">
         <rect x="10" y="18" width="90" height="40" rx="10" fill="#1f2e4d" stroke="#4f8ef7"/>
         <text x="55" y="43" fill="#9ec5ff" text-anchor="middle" font-weight="700">Host</text>
         <rect x="130" y="18" width="90" height="40" rx="10" fill="#1f2e4d" stroke="#22d3ee"/>
@@ -2504,9 +2515,9 @@ McpConnection         <span class="cm"># 单连接 1:1</span>
 <section class="slide">
   <h2><span class="num">⑤</span> MCP · 握手时序图 + JSON-RPC 交互</h2>
   <div class="grid g2" style="flex:1">
-    <div class="card">
+    <div class="card" style="display:flex; flex-direction:column">
       <h4>连接握手时序</h4>
-      <svg width="360" height="360" viewBox="0 0 360 360">
+      <svg width="360" height="360" viewBox="0 0 360 360" style="flex:1; min-height:0; width:100%">
         <defs><marker id="mcp" markerWidth="8" markerHeight="7" refX="7" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#22d3ee"/></marker></defs>
         <rect x="30" y="10" width="120" height="34" rx="8" fill="#1f2e4d" stroke="#4f8ef7"/>
         <text x="90" y="32" fill="#9ec5ff" text-anchor="middle" font-weight="700">Client</text>
@@ -2700,7 +2711,7 @@ McpConnection         <span class="cm"># 单连接 1:1</span>
   <div class="grid g2" style="flex:1">
     <div class="card">
       <h4>动静分离的物理形态（长什么样）</h4>
-      <pre style="font-size:12px; line-height:1.5">┌─ 静态区（cache_control）────────┐
+      <pre style="font-size:14px; line-height:1.5">┌─ 静态区（cache_control）────────┐
 │ 身份：你是编程助手，负责...
 │ 规则：先读后改 / 专用工具优先
 │       （用 read_file 代替 cat）
@@ -2870,7 +2881,7 @@ dynamic = template[idx:]   <span class="cm"># cwd/记忆/技能</span>
         <li class="a"><b>第二层 · 代码兜底</b>：可靠性要求高的，提示词不够就下沉——todo 规则写在 base.md，但真正保证的是 <code>rounds_without_todo</code> 计数 + <code>&lt;reminder&gt;</code> 注入</li>
         <li class="a"><b>第三层 · 结构化约束</b>：格式必须对的——工作流 JSON 输出不靠提示词，靠解析链 + reformat_retry</li>
       </ul>
-      <pre style="font-size:12px; margin-top:4px"><span class="cm"># memory.md 的点睛之笔（解决"何时写"的犹豫）</span>
+      <pre style="font-size:14px; margin-top:4px"><span class="cm"># memory.md 的点睛之笔（解决"何时写"的犹豫）</span>
 "When in doubt about whether something
 is worth saving — <b>save it</b>.
 Saving is cheap; re-learning is expensive."
@@ -2886,7 +2897,7 @@ Saving is cheap; re-learning is expensive."
   <div class="grid g2" style="flex:1">
     <div class="card">
       <h4>决策管线（行为优先级铁律）</h4>
-      <svg width="430" height="240" viewBox="0 0 430 240">
+      <svg width="860" height="480" viewBox="0 0 430 240">
         <defs><marker id="ar4" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#8fa3c0"/></marker></defs>
         <rect x="20" y="95" width="80" height="44" rx="10" fill="#1f2e4d" stroke="#f87171"/>
         <text x="60" y="112" fill="#fca5a5" text-anchor="middle" font-weight="700">危险检测</text>
@@ -2949,7 +2960,7 @@ Saving is cheap; re-learning is expensive."
   <div class="grid g2" style="flex:1">
     <div class="card">
       <h4>rm -rf build/ 的完整旅程</h4>
-      <pre style="font-size:12px; line-height:1.55">tool_use: run_shell(<span class="str">"rm -rf build/"</span>)
+      <pre style="font-size:14px; line-height:1.55">tool_use: run_shell(<span class="str">"rm -rf build/"</span>)
   → execute_tool hook（session 层）
   → 危险检测：rm -rf 命中正则
     <span class="cm"># bypass-immune：即便 bypass 模式也拦</span>
@@ -3025,7 +3036,7 @@ tool_use: run_shell(<span class="str">"rm -rf build/"</span>)
       <tr><td>状态持久化</td><td>LangGraph</td><td>checkpointer 断点续跑</td><td>快照恢复</td></tr>
     </table>
     <h4 style="margin-top:10px">L1-L5 管线（从廉价到昂贵，逐级递进）</h4>
-    <svg width="920" height="180" viewBox="0 0 920 180">
+    <svg width="1790" height="350" viewBox="0 0 920 180">
       <defs><marker id="ar5" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#34d399"/></marker></defs>
       <g>
         <rect x="10" y="40" width="165" height="90" rx="12" fill="#1f2e4d" stroke="#34d399"/>
@@ -3117,7 +3128,7 @@ tool_use: run_shell(<span class="str">"rm -rf build/"</span>)
   <div class="grid g2" style="flex:1">
     <div class="card">
       <h4>snip 前后对照（真实效果）</h4>
-      <pre style="font-size:12px; line-height:1.5"><span class="cm"># 压缩前：多轮历史，含大工具结果</span>
+      <pre style="font-size:14px; line-height:1.5"><span class="cm"># 压缩前：多轮历史，含大工具结果</span>
 [assistant] 我先读一下核心文件...
 [user/tool_result · read_file loop.py]
   "loop.py 完整源码（8,420 字符）..."
@@ -3187,7 +3198,7 @@ record_failure(): fail += <span class="str">1</span></pre>
   <div class="grid g2" style="flex:1">
     <div class="card">
       <h4>从触发到恢复（真实时序）</h4>
-      <pre style="font-size:12px; line-height:1.55">turn N：工具结果回传
+      <pre style="font-size:14px; line-height:1.55">turn N：工具结果回传
   → maybe_compact()            <span class="cm"># hooks 每轮调用</span>
   → 估算 utilization = <span class="str">0.87</span>      <span class="cm"># 锚点+增量</span>
     <span class="str">0.87 &gt; 0.85</span> → 触发压缩
@@ -3222,7 +3233,7 @@ record_failure(): fail += <span class="str">1</span></pre>
   <div class="grid g2" style="flex:1">
     <div class="card">
       <h4>摘要 Prompt（源码真实结构 · 双阶段）</h4>
-      <pre style="font-size:12px; line-height:1.45"><span class="cm"># context/compact.py COMPACT_PROMPT（节选）</span>
+      <pre style="font-size:14px; line-height:1.5"><span class="cm"># context/compact.py COMPACT_PROMPT（节选）</span>
 CRITICAL: Respond with TEXT ONLY.
 Do NOT call any tools.
 
@@ -3259,7 +3270,7 @@ Do NOT call any tools.
   <div class="grid g2" style="flex:1">
     <div class="card">
       <h4>classify 决策树（status 优先，message 兜底）</h4>
-      <svg width="420" height="330" viewBox="0 0 420 330">
+      <svg width="840" height="660" viewBox="0 0 420 330">
         <defs><marker id="ec" markerWidth="7" markerHeight="6" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#8fa3c0"/></marker></defs>
         <rect x="160" y="8" width="100" height="34" rx="9" fill="#1f2e4d" stroke="#4f8ef7"/>
         <text x="210" y="30" fill="#9ec5ff" text-anchor="middle" font-size="12" font-weight="700">API 异常 e</text>
@@ -3348,9 +3359,9 @@ jitter = delay × 0.25 × random()
 <section class="slide">
   <h2><span class="num">⑥</span> 稳定执行 · 429 重试完整时序</h2>
   <div class="grid g2" style="flex:1">
-    <div class="card">
+    <div class="card" style="display:flex; flex-direction:column">
       <h4>重试循环时序</h4>
-      <svg width="340" height="340" viewBox="0 0 340 340">
+      <svg width="340" height="340" viewBox="0 0 340 340" style="flex:1; min-height:0; width:100%">
         <defs><marker id="rr" markerWidth="8" markerHeight="7" refX="7" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#fbbf24"/></marker></defs>
         <rect x="20" y="10" width="140" height="34" rx="8" fill="#1f2e4d" stroke="#4f8ef7"/>
         <text x="90" y="32" fill="#9ec5ff" text-anchor="middle" font-weight="700">循环层</text>
@@ -3429,12 +3440,12 @@ jitter = delay × 0.25 × random()
 
 <section class="slide">
   <h2><span class="num">⑥</span> 并发 · 全局架构（谁起线程、谁在哪等）</h2>
-  <div class="card" style="flex:1; display:flex; align-items:center; justify-content:center">
-  <svg width="930" height="440" viewBox="0 0 930 440">
+  <div class="card" style="flex:1; display:flex; align-items:center; justify-content:center; position:relative">
+  <svg width="930" height="440" viewBox="0 0 930 440" style="position:absolute; inset:0; margin:auto; width:min(1200px,100%); height:min(568px,100%)">
     <defs><marker id="cg" markerWidth="8" markerHeight="7" refX="7" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#8fa3c0"/></marker></defs>
     <rect x="365" y="170" width="200" height="90" rx="14" fill="#1f2e4d" stroke="#22d3ee" stroke-width="2"/>
     <text x="465" y="205" fill="#67e8f9" text-anchor="middle" font-size="16" font-weight="800">主循环（主线程）</text>
-    <text x="465" y="230" fill="#8fa3c0" text-anchor="middle" font-size="11">所有队列的<b>唯一消费者</b>（pre_turn drain）</text>
+    <text x="465" y="230" fill="#8fa3c0" text-anchor="middle" font-size="11">所有队列的<tspan font-weight="700">唯一消费者</tspan>（pre_turn drain）</text>
     <text x="465" y="248" fill="#5d7195" text-anchor="middle" font-size="10.5">单消费者设计 = 无并发竞争</text>
 
     <rect x="40" y="30" width="230" height="60" rx="10" fill="#1a2740" stroke="#34d399"/>
@@ -3517,7 +3528,7 @@ jitter = delay × 0.25 × random()
   <div class="grid g2" style="flex:1">
     <div class="card">
       <h4>主循环（带模块坐标）</h4>
-      <pre style="font-size:12.5px; line-height:1.55"><span class="kw">while</span> turns &lt; max_turns:              <span class="cm"># ④ 核心循环</span>
+      <pre style="font-size:14px; line-height:1.55"><span class="kw">while</span> turns &lt; max_turns:              <span class="cm"># ④ 核心循环</span>
     notifs = drain()                   <span class="cm"># ⑥ 并发：收割后台通知</span>
     resp = adapter.chat(system,        <span class="cm"># ⑥ 稳定执行：退避重试</span>
               messages, tools)         <span class="cm">#   + JSON 截断修复</span>
@@ -3595,13 +3606,14 @@ jitter = delay × 0.25 × random()
 <!-- ============ 结尾 ============ -->
 <section class="slide full">
   <div>
-    <h1 style="font-size:44px">谢谢观看</h1>
-    <p class="sub" style="margin-top:16px; font-size:18px">从协议原理 → 业界共识 → 本项目设计 → 算法推导 → 成熟度与不足</p>
-    <p class="sub" style="margin-top:40px; font-size:13px">配套文档：docs/04-architecture/00-11 · 完整调研：cc源码调研/ · docs/01-research/</p>
+    <h1 style="font-size:48px">谢谢观看</h1>
+    <p class="sub" style="margin-top:16px; font-size:20px">从协议原理 → 业界共识 → 本项目设计 → 算法推导 → 成熟度与不足</p>
+    <p class="sub" style="margin-top:40px; font-size:14.5px">配套文档：docs/04-architecture/00-11 · 完整调研：cc源码调研/ · docs/01-research/</p>
   </div>
 </section>
 
 <div id="nav">
+  <select id="jump" title="跳转到指定页"></select>
   <span id="pageno">1 / 0</span>
   <button id="prev">←</button>
   <button id="next">→</button>
@@ -3615,6 +3627,7 @@ function show(n){
   slides[i].classList.remove('active');
   i=(n+slides.length)%slides.length;
   slides[i].classList.add('active');
+  document.getElementById('jump').value=i;
   document.getElementById('pageno').textContent=(i+1)+' / '+slides.length;
   document.getElementById('progress').style.width=((i+1)/slides.length*100)+'%';
 }
@@ -3626,6 +3639,16 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Home')show(0);
   if(e.key==='End')show(slides.length-1);
 });
+const jump=document.getElementById('jump');
+slides.forEach((s,idx)=>{
+  const h=s.querySelector('h2')||s.querySelector('h1');
+  let t=h?h.textContent.replace(/\s+/g,' ').replace(/^[⓪①-⑨§]\s*/,'').trim():'';
+  const disp=t.length>16?t.slice(0,16)+'…':(t||'封面');
+  const o=document.createElement('option');
+  o.value=idx;o.textContent=(idx+1)+'. '+disp;
+  jump.appendChild(o);
+});
+jump.addEventListener('change',()=>show(+jump.value));
 document.getElementById('pageno').textContent='1 / '+slides.length;
 document.getElementById('progress').style.width=(1/slides.length*100)+'%';
 </script>
